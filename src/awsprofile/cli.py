@@ -9,7 +9,7 @@ def cli(ctx):
 
 @cli.command()
 def dev():
-    """Log in to aws profile with dev alias"""
+    """Use aws profile with dev alias temporary credentials as default profile credentials"""
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="dev")
@@ -17,7 +17,7 @@ def dev():
 
 @cli.command()
 def prod():
-    """Log in to aws profile with prod alias"""
+    """Use aws profile with prod alias temporary credentials as default profile credentials"""
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="prod")
@@ -25,16 +25,16 @@ def prod():
 
 @cli.command()
 def integration():
-    """Log in to aws profile with integration alias"""
+    """Use aws profile with integration alias temporary credentials as default profile credentials"""
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="integration")
 
 
 @cli.command()
-@click.argument("profile", default="dev")
+@click.argument("profile", default="dev", help="AWS profile or alias name.")
 def profile(profile: str):
-    """Log in to aws profile"""
+    """Use aws profile temporary credentials as default profile credentials"""
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile=profile)
@@ -42,7 +42,7 @@ def profile(profile: str):
 
 @cli.command()
 def list():
-    """List aws profiles"""
+    """List aws profiles and aliases"""
     from awsprofile.export_credentials import _dict_aliases
 
     aliases, profiles = _dict_aliases()
@@ -55,21 +55,21 @@ def list():
 
 
 @cli.command()
-@click.argument("profile")
-@click.argument("alias")
+@click.argument("profile", help="AWS profile name.")
+@click.argument("alias", help="AWS profile alias name.")
 def set(alias: str, profile: str):
-    """List aws profiles"""
+    """Set aws profile alias"""
     from awsprofile.export_credentials import _set_alias
 
     _set_alias(alias, profile)
 
 
 @cli.command()
-@click.option("--email")
-@click.option("--access-key")
-@click.option("--secret-key")
+@click.option("--email", help="Email address used for AWS access.")
+@click.option("--access-key", help="AWS access key.")
+@click.option("--secret-key", help="AWS secret key.")
 def init(email: str, access_key: str, secret_key: str):
-    """List aws profiles"""
+    """Create or update aws profiles config and credentials files"""
     from awsprofile.create_credentials import _set_default_configuration
 
     _set_default_configuration(email, access_key, secret_key)
