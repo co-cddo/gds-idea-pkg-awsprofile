@@ -16,7 +16,7 @@ PREREQUISITES: list[tuple[str, list[str], str, str | None]] = [
 ]
 
 
-def check_prerequisites(only: list[str] | None = None) -> None:
+def _check_prerequisites(only: list[str] | None = None) -> None:
     """Verify that required external tools are installed.
 
     Checks every tool and reports all missing ones at once, so the user

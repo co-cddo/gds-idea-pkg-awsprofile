@@ -1,6 +1,6 @@
 # gds-idea-pkg-awsprofile
 
-_Brief description of your package._
+awsprofile - manages aws credentials.
 
 ## Prerequisites
 

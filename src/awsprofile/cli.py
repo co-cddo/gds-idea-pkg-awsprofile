@@ -71,5 +71,7 @@ def set(alias: str, profile: str):
 def init(email: str, access_key: str, secret_key: str):
     """Create or update aws profiles config and credentials files"""
     from awsprofile.create_credentials import _set_default_configuration
+    from awsprofile.prerequisites import _check_prerequisites
 
+    _check_prerequisites()
     _set_default_configuration(email, access_key, secret_key)
