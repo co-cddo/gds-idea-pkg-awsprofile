@@ -75,7 +75,7 @@ def _set_default_configuration(email: str = None, access_key: str = None, secret
     if email:
         email_prefix = email.split("@", 1)[0]
         for env, profiles in profiles_env.items():
-            for profile in profiles:
+            for profile, _alias in profiles:
                 subprocess.run(
                     [
                         "aws",
