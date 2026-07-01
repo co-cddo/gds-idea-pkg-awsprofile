@@ -1,1 +1,1 @@
-"""awsprofile - TODO: add description."""
+"""awsprofile - manages aws credentials."""
