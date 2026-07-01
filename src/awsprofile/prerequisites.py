@@ -1,8 +1,7 @@
 """Pre-requisite checks for external tools.
 
-Verifies that tools like cdk, uv, git, docker, and the docker compose
-plugin are installed and available before starting work.  Used by both
-``init`` (checks everything) and ``smoke-test`` (checks docker only).
+Verifies that tools like aws are installed and available before starting work.  Used by
+``init`` (checks everything).
 """
 
 import subprocess

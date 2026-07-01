@@ -1,6 +1,45 @@
 # gds-idea-pkg-awsprofile
 
-awsprofile - manages aws credentials.
+CLI tool for aws credential files management and aws profile sign in.
+
+- Create aws credentials and config files and fill them with GDS IDEA aws profiles
+- Log in to selected profile and set it as default
+
+## Installation
+
+`awsprofile` is installed as a global CLI tool, not as a per-project dependency. Install it via the [GDS IDEA package index](https://co-cddo.github.io/gds-idea-pypi/).
+
+**Recommended — using `idea-tools`** (see the [index page](https://co-cddo.github.io/gds-idea-pypi/) for one-time setup):
+
+```bash
+idea-tools install awsprofile
+```
+
+**Alternative — without `idea-tools`:**
+
+```bash
+uv tool install awsprofile --index gds-idea=https://co-cddo.github.io/gds-idea-pypi/simple/
+```
+
+To upgrade to the latest version:
+
+```bash
+idea-tools upgrade awsprofile
+# or without idea-tools:
+uv tool upgrade awsprofile
+```
+
+If you previously installed from a git URL, switch to the index:
+
+```bash
+idea-tools install awsprofile --reinstall
+```
+
+Verify it's working:
+
+```bash
+awsprofile --version
+```
 
 ## Prerequisites
 

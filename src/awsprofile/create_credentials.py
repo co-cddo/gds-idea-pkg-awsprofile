@@ -2,6 +2,15 @@ import subprocess
 
 
 def _set_default_configuration(email: str = None, access_key: str = None, secret_key: str = None):
+    """Create or update .aws folder in home directory with config and credentials files.
+
+    Create or update aws credentials files and fill them with profiles used by GDS IDEA team.
+
+    Args:
+        email: If provided, creates or updates profiles role_arn and mfa_serial fields.
+        access_key: If provided, creates or updates gds-users profile aws_access_key_id field.
+        secret_key: If provided, creates or updates gds-users profile secret_key field.
+    """
     org_account = "622626885786"
     if access_key:
         subprocess.run(

@@ -9,6 +9,11 @@ import click
 
 
 def _list_profiles() -> list[str]:
+    """List aws profiles
+
+    Returns:
+        AWS profiles names list.
+    """
     try:
         completed_process = subprocess.run(
             ["aws", "configure", "list-profiles"], check=True, capture_output=True, text=True
@@ -22,6 +27,12 @@ def _list_profiles() -> list[str]:
 
 
 def _dict_aliases() -> tuple[dict[str, str], list[str]]:
+    """Get aws profiles list and and aliases to profiles dictionary
+
+    Returns:
+        - Dictionary alias to profile name.
+        - List profiles names.
+    """
     config = configparser.RawConfigParser()
     config.read(os.path.expanduser("~/.aws/config"))
     aliases = {}
@@ -40,6 +51,14 @@ def _dict_aliases() -> tuple[dict[str, str], list[str]]:
 
 
 def _set_alias(alias, profile):
+    """Set alias to aws profile.
+
+    Create or update alias field for aws profile.
+
+    Args:
+        alias: Alias name to set.
+        profile: Profile name to set alias for.
+    """
     aliases, profiles = _dict_aliases()
 
     if profile not in profiles:
@@ -65,6 +84,11 @@ def _set_alias(alias, profile):
 
 
 def _export_credentials(profile: str):
+    """Log in and set aws profile temporary credentials in default profile.
+
+    Args:
+        profile: Profile or alias name to set as default.
+    """
     aliases, profiles = _dict_aliases()
     profile = aliases.get(profile, profile)
     if profile in profiles:
