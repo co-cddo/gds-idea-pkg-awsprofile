@@ -1,6 +1,6 @@
 [project]
 name = "gds-idea-pkg-awsprofile"
-description = "TODO: add description"
+description = "Manage AWS credentials"
 readme = "README.md"
 authors = [
     { name = "Jarek-Rolski", email = "jaroslaw.rolski@yahoo.com" }

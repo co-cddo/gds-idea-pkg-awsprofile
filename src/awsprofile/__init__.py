@@ -1,1 +1,1 @@
-"""awsprofile - manages aws credentials."""
+"""awsprofile - manage aws credentials."""

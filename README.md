@@ -12,27 +12,27 @@ CLI tool for aws credential files management and aws profile sign in.
 **Recommended — using `idea-tools`** (see the [index page](https://co-cddo.github.io/gds-idea-pypi/) for one-time setup):
 
 ```bash
-idea-tools install awsprofile
+idea-tools install gds-idea-pkg-awsprofile
 ```
 
 **Alternative — without `idea-tools`:**
 
 ```bash
-uv tool install awsprofile --index gds-idea=https://co-cddo.github.io/gds-idea-pypi/simple/
+uv tool install gds-idea-pkg-awsprofile --index gds-idea=https://co-cddo.github.io/gds-idea-pypi/simple/
 ```
 
 To upgrade to the latest version:
 
 ```bash
-idea-tools upgrade awsprofile
+idea-tools upgrade gds-idea-pkg-awsprofile
 # or without idea-tools:
-uv tool upgrade awsprofile
+uv tool upgrade gds-idea-pkg-awsprofile
 ```
 
 If you previously installed from a git URL, switch to the index:
 
 ```bash
-idea-tools install awsprofile --reinstall
+idea-tools install gds-idea-pkg-awsprofile --reinstall
 ```
 
 Verify it's working:
