@@ -56,7 +56,8 @@ def list():
     echo_profiles = [
         f"{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile for profile in profiles
     ]
-    click.echo(f"Available profiles:\n{'\n'.join(echo_profiles)}", err=True)
+    echo_profiles = "\n".join(echo_profiles)
+    click.echo(f"Available profiles:\n{echo_profiles}", err=True)
 
 
 @cli.command()

@@ -69,13 +69,15 @@ def _set_alias(alias, profile):
             f"{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile
             for profile in profiles
         ]
-        click.echo(f"Available profiles:\n{'\n'.join(echo_profiles)}", err=True)
+        echo_profiles = "\n".join(echo_profiles)
+        click.echo(f"Available profiles:\n{echo_profiles}", err=True)
         sys.exit(1)
     if alias in aliases:
         click.echo(f"Alias '{alias}' does exist", err=True)
         click.echo("", err=True)
         echo_aliases = [f"{profile} ({alias})" for alias, profile in aliases.items()]
-        click.echo(f"Existing aliases:\n{'\n'.join(echo_aliases)}", err=True)
+        echo_aliases = "\n".join(echo_aliases)
+        click.echo(f"Existing aliases:\n{echo_aliases}", err=True)
         sys.exit(1)
 
     subprocess.run(
@@ -103,7 +105,8 @@ def _export_credentials(profile: str):
             f"{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile
             for profile in profiles
         ]
-        click.echo(f"Available profiles:\n{'\n'.join(echo_profiles)}", err=True)
+        echo_profiles = "\n".join(echo_profiles)
+        click.echo(f"Available profiles:\n{echo_profiles}", err=True)
         sys.exit(1)
 
     stdout = completed_process.stdout
@@ -150,4 +153,5 @@ def _export_credentials(profile: str):
     time_diff = time_expiration - time_now
 
     if time_diff > datetime.timedelta():
-        click.echo(f"Session valid, {time_diff.total_seconds() // 60} minutes left", err=True)
+        echo_time_diff = time_diff.total_seconds() // 60
+        click.echo(f"Session valid, {echo_time_diff} minutes left", err=True)
