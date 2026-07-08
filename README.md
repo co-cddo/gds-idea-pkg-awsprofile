@@ -5,6 +5,23 @@ CLI tool for aws credential files management and aws profile sign in.
 - Create aws credentials and config files and fill them with GDS IDEA aws profiles
 - Log in to selected profile and set it as default
 
+## Initial setup
+
+1. Configure AWS credentials and config files
+   - If you already have gds-users profile set up: \
+   `awsprofile init —email {your-aws-account-email}`
+   - Otherwise: \
+   `awsprofile init —email {your-aws-account-email} —access-key {access key from credentials file} —secret-key {secret key from credentials file}`
+2. Sign up to AWS
+   - Check current profiles and aliases: \
+   `awsprofile list`
+   - Sign up to profile: \
+   `awsprofile profile {profile or alias name}`
+   - Sign up to `dev`/`prod`/`integration` aliases \
+   `awsprofile dev/prod/integration`
+   - Set up profile alias \
+   `awsprofile set {profile name} {alias name}`
+
 ## Installation
 
 `awsprofile` is installed as a global CLI tool, not as a per-project dependency. Install it via the [GDS IDEA package index](https://co-cddo.github.io/gds-idea-pypi/).
