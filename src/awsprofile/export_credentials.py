@@ -85,12 +85,18 @@ def _set_alias(alias, profile):
     )
 
 
-def _export_credentials(profile: str):
+def _export_credentials(profile: str, export_profile: str = None):
     """Log in and set aws profile temporary credentials in default profile.
 
     Args:
-        profile: Profile or alias name to set as default.
+        profile: Profile or alias name to set as export_profile.
+        export_profile: (Optional) Profile to export credentials to, defaults to default
     """
+    export_profile = "default" if export_profile is None else export_profile
+    if export_profile.startswith("assume-ds-role") or export_profile == "gds-users":
+        click.echo("Invalid eport profile name!", err=True)
+        sys.exit(1)
+
     aliases, profiles = _dict_aliases()
     profile = aliases.get(profile, profile)
     if profile in profiles:
@@ -114,7 +120,7 @@ def _export_credentials(profile: str):
 
     try:
         completed_process = subprocess.run(
-            ["aws", "configure", "set", "aws_access_key_id", stdout_json["AccessKeyId"], "--profile", "default"],
+            ["aws", "configure", "set", "aws_access_key_id", stdout_json["AccessKeyId"], "--profile", export_profile],
             check=True,
             capture_output=True,
             text=True,
@@ -130,7 +136,7 @@ def _export_credentials(profile: str):
                 "aws_secret_access_key",
                 stdout_json["SecretAccessKey"],
                 "--profile",
-                "default",
+                export_profile,
             ],
             check=True,
             capture_output=True,
@@ -140,7 +146,16 @@ def _export_credentials(profile: str):
         raise e
     try:
         completed_process = subprocess.run(
-            ["aws", "configure", "set", "aws_session_token", stdout_json["SessionToken"], "--profile", "default"],
+            ["aws", "configure", "set", "aws_session_token", stdout_json["SessionToken"], "--profile", export_profile],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise e
+    try:
+        completed_process = subprocess.run(
+            ["aws", "configure", "set", "alias", profile, "--profile", export_profile],
             check=True,
             capture_output=True,
             text=True,

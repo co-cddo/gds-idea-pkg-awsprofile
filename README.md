@@ -13,12 +13,12 @@ CLI tool for aws credential files management and aws profile sign in.
    - Otherwise: \
    `awsprofile init —email {your-aws-account-email} —access-key {access key from credentials file} —secret-key {secret key from credentials file}`
 2. Sign up to AWS
-   - Check current profiles and aliases: \
+   - Check current profiles and aliases, and export profiles with source profiles: \
    `awsprofile list`
    - Sign up to profile: \
-   `awsprofile profile {profile or alias name}`
-   - Sign up to `dev`/`prod`/`integration` aliases \
-   `awsprofile dev/prod/integration`
+   `awsprofile profile {profile or alias name} {(optional) export profile name, defaults to default}`
+   - Sign up to `dev`/`prod`/`integration`/`bedrock` aliases \
+   `awsprofile dev/prod/integration/bedrock`
    - Set up profile alias \
    `awsprofile set {profile name} {alias name}`
 
