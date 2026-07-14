@@ -34,10 +34,10 @@ def _set_default_configuration(email: str = None, access_key: str = None, secret
             text=True,
         )
 
-    profiles_base = ["default", "gds-users"]
+    profiles_base = ["default", "gds-users", "bedrockonly"]
     profiles_env = {
         "prod": [("admin", "proda"), ("poweraccess", "prodp"), ("readonly", "prod")],
-        "dev": [("admin", "deva"), ("poweraccess", "dev"), ("readonly", "devr")],
+        "dev": [("admin", "deva"), ("poweraccess", "dev"), ("readonly", "devr"), ("bedrockonly", "bedrock")],
         "integration": [("admin", "integration")],
     }
     profiles_accounts = {"prod": "588077357019", "dev": "992382722318", "integration": "539502489680"}

@@ -33,16 +33,26 @@ def integration():
 
 
 @cli.command()
+def bedrock():
+    """Use aws profile with integration alias temporary credentials as bedrockonly profile credentials"""
+    from awsprofile.export_credentials import _export_credentials
+
+    _export_credentials(profile="bedrock", export_profile="bedrockonly")
+
+
+@cli.command()
 @click.argument("profile", default="dev")
-def profile(profile: str):
+@click.argument("export_profile", default="default")
+def profile(profile: str, export_profile: str):
     """Log in and set aws profile temporary credentials in default profile.
 
     Args:
-        profile: Profile or alias name to set as default.
+        profile: Profile or alias name to set as export_profile.
+        export_profile: Profile to export credentials to, defaults to default.
     """
     from awsprofile.export_credentials import _export_credentials
 
-    _export_credentials(profile=profile)
+    _export_credentials(profile=profile, export_profile=export_profile)
 
 
 @cli.command()
@@ -53,11 +63,28 @@ def list():
     aliases, profiles = _dict_aliases()
 
     reversed_aliases = {profile: alias for alias, profile in aliases.items()}
-    echo_profiles = [
-        f"{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile for profile in profiles
+
+    profiles_assume = [profile for profile in profiles if profile.startswith("assume-ds-role-")]
+    profiles_credentials = [
+        profile
+        for profile in profiles
+        if not profile.startswith("assume-ds-role-") and reversed_aliases.get(profile, "").startswith("assume-ds-role-")
     ]
-    echo_profiles = "\n".join(echo_profiles)
-    click.echo(f"Available profiles:\n{echo_profiles}", err=True)
+
+    echo_profiles_assume = [
+        f"\t{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile
+        for profile in profiles_assume
+    ]
+    echo_profiles_credentials = [
+        f"\t{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile
+        for profile in profiles_credentials
+    ]
+
+    echo_profiles_assume = "\n".join(echo_profiles_assume)
+    click.echo(f"Available assume-ds-role profiles with aliases:\n{echo_profiles_assume}", err=False)
+
+    echo_profiles_credentials = "\n".join(echo_profiles_credentials)
+    click.echo(f"Created credentials profiles with source profiles:\n{echo_profiles_credentials}", err=False)
 
 
 @cli.command()
