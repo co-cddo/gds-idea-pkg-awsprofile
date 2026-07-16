@@ -53,6 +53,24 @@ def _dict_aliases() -> tuple[dict[str, str], list[str]]:
     return aliases, sections_parsed
 
 
+def _dict_credentials_profiles() -> tuple[dict[str, str], list[str]]:
+    """Get aws credentials profiles and source exported profiles dictionary
+
+    Returns:
+        - Dictionary credentials profile to source exported profile name.
+    """
+    config = configparser.RawConfigParser()
+    config.read(os.path.expanduser("~/.aws/config"))
+    profiles = {}
+    for section in config.sections():
+        credentials_profile = config.get(section, "credentials_profile", fallback=None)
+        if credentials_profile is not None:
+            sections_parsed = section.replace("profile", "").strip()
+            profiles[sections_parsed] = credentials_profile
+
+    return profiles
+
+
 def _set_alias(alias, profile):
     """Set alias to aws profile.
 
