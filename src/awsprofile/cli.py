@@ -58,26 +58,21 @@ def profile(profile: str, export_profile: str):
 @cli.command()
 def list():
     """List aws profiles and aliases"""
-    from awsprofile.export_credentials import _dict_aliases
+    from awsprofile.export_credentials import _dict_aliases, _dict_credentials_profiles
 
     aliases, profiles = _dict_aliases()
+    profiles_credentials = _dict_credentials_profiles()
 
     reversed_aliases = {profile: alias for alias, profile in aliases.items()}
 
     profiles_assume = [profile for profile in profiles if profile.startswith("assume-ds-role-")]
-    profiles_credentials = [
-        profile
-        for profile in profiles
-        if not profile.startswith("assume-ds-role-") and reversed_aliases.get(profile, "").startswith("assume-ds-role-")
-    ]
 
     echo_profiles_assume = [
         f"\t{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile
         for profile in profiles_assume
     ]
     echo_profiles_credentials = [
-        f"\t{profile} ({reversed_aliases[profile]})" if profile in reversed_aliases else profile
-        for profile in profiles_credentials
+        f"\t{profile} ({exported_profile})" for profile, exported_profile in profiles_credentials.items()
     ]
 
     echo_profiles_assume = "\n".join(echo_profiles_assume)
