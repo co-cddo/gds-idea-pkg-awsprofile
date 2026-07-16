@@ -7,7 +7,7 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "boto3>=1.43.48",
+    "boto3>=1.43.49",
     "click>=8.4.2",
 ]
 dynamic = ["version"]
@@ -61,5 +61,5 @@ LICENCE = "sha256:21cc325b3181cb748845827425d37ce04b3dc563835bbf50fafbc56a5eb68c
 dev = [
     "pre-commit>=4.6.0",
     "pytest>=9.0.0",
-    "ruff>=0.14.0",
+    "ruff>=0.15.21",
 ]
