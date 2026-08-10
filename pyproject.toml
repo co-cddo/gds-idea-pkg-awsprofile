@@ -7,7 +7,7 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "boto3>=1.43.48",
+    "boto3>=1.43.66",
     "click>=8.4.2",
 ]
 dynamic = ["version"]
@@ -59,7 +59,7 @@ LICENCE = "sha256:21cc325b3181cb748845827425d37ce04b3dc563835bbf50fafbc56a5eb68c
 ".github/workflows/release.yml" = "sha256:9f0252542002155aa15a6811081f44111a1b9b35129dafee159b85a97071172c"
 [dependency-groups]
 dev = [
-    "pre-commit>=4.6.0",
+    "pre-commit>=4.6.1",
     "pytest>=9.0.0",
-    "ruff>=0.14.0",
+    "ruff>=0.16.1",
 ]
