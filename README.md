@@ -79,6 +79,9 @@ A few terms used throughout this doc and the CLI's own help text:
      `awsprofile init --email {your-aws-account-email}`
    - Otherwise: \
      `awsprofile init --email {your-aws-account-email} --access-key {access key from credentials file} --secret-key {secret key from credentials file}`
+   - If your MFA device name doesn't match your email address (see
+     Troubleshooting below), also pass `--mfa-suffix {device name}` or
+     `--mfa-serial {full arn}`.
 2. Check what's available:
    - List profiles and aliases, and any existing export mappings: \
      `awsprofile list`
@@ -95,7 +98,7 @@ A few terms used throughout this doc and the CLI's own help text:
 
 | Command | What it does |
 | --- | --- |
-| `awsprofile init` | Creates/updates `~/.aws/config` and `~/.aws/credentials` with the GDS IDEA profile set. Accepts `--email`, and `--access-key`/`--secret-key` if `gds-users` isn't already configured. |
+| `awsprofile init` | Creates/updates `~/.aws/config` and `~/.aws/credentials` with the GDS IDEA profile set. Accepts `--email`, `--access-key`/`--secret-key` if `gds-users` isn't already configured, and `--mfa-serial`/`--mfa-suffix` if the MFA device name doesn't match the email address. |
 | `awsprofile list` | Lists available `assume-ds-role-*` profiles with their aliases, and shows which export profiles currently hold credentials from which source profile. |
 | `awsprofile set {profile} {alias}` | Assigns a nickname (`alias`) to an existing profile. |
 | `awsprofile profile {profile\|alias} {export_profile=default}` | Signs in to the given profile or alias and writes temporary credentials into `export_profile` (`default` unless specified). |
@@ -113,6 +116,7 @@ A few terms used throughout this doc and the CLI's own help text:
 - **`aws: command not found` / missing tools error** — install the AWS CLI (`brew install awscli`) and re-run; `awsprofile init` checks for this up front.
 - **`Profile or alias 'x' does not exist`** — run `awsprofile list` to see what's actually available, and double check spelling/casing.
 - **An unexpected Python traceback during sign-in** — this is a known rough edge (see [issue #7](https://github.com/co-cddo/gds-idea-pkg-awsprofile/issues/7)); common causes are an expired or not-yet-registered MFA device, or signing in again before the previous session fully expired. Re-running the command usually resolves it; if it persists, check that `awsprofile init --email ...` was run with the correct account email.
+- **MFA sign-in fails even though the email is correct** — `awsprofile init` derives the MFA device ARN as `arn:aws:iam::<org account>:mfa/{email}` by default, but your IAM MFA device name may not match your email address. Re-run `awsprofile init` with `--mfa-suffix {actual device name}` (or `--mfa-serial {full arn}` if the account differs too) to override it.
 
 ## Licence
 
