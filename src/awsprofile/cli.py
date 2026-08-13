@@ -103,10 +103,24 @@ def set(alias: str, profile: str):
 @click.option("--email", help="Email address used for AWS access.")
 @click.option("--access-key", help="AWS access key.")
 @click.option("--secret-key", help="AWS secret key.")
-def init(email: str, access_key: str, secret_key: str):
+@click.option(
+    "--mfa-serial",
+    help="Full MFA device ARN to use instead of the one derived from --email. Mutually exclusive with --mfa-suffix.",
+)
+@click.option(
+    "--mfa-suffix",
+    help=(
+        "MFA device name to use instead of the email address, e.g. arn:aws:iam::<account>:mfa/<mfa-suffix>. "
+        "Mutually exclusive with --mfa-serial."
+    ),
+)
+def init(email: str, access_key: str, secret_key: str, mfa_serial: str, mfa_suffix: str):
     """Create or update aws credentials files and fill them with profiles used by GDS IDEA team."""
     from awsprofile.create_credentials import _set_default_configuration
     from awsprofile.prerequisites import _check_prerequisites
 
+    if mfa_serial and mfa_suffix:
+        raise click.UsageError("--mfa-serial and --mfa-suffix are mutually exclusive; use only one.")
+
     _check_prerequisites()
-    _set_default_configuration(email, access_key, secret_key)
+    _set_default_configuration(email, access_key, secret_key, mfa_serial, mfa_suffix)

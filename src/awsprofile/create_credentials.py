@@ -1,17 +1,37 @@
 import subprocess
 
 
-def _set_default_configuration(email: str = None, access_key: str = None, secret_key: str = None):
+def _set_default_configuration(
+    email: str = None,
+    access_key: str = None,
+    secret_key: str = None,
+    mfa_serial: str = None,
+    mfa_suffix: str = None,
+):
     """Create or update .aws folder in home directory with config and credentials files.
 
     Create or update aws credentials files and fill them with profiles used by GDS IDEA team.
 
     Args:
-        email: If provided, creates or updates profiles role_arn and mfa_serial fields.
+        email: If provided, creates or updates profiles role_arn field, and mfa_serial field
+            unless mfa_serial or mfa_suffix is also provided.
         access_key: If provided, creates or updates gds-users profile aws_access_key_id field.
         secret_key: If provided, creates or updates gds-users profile secret_key field.
+        mfa_serial: If provided, used as the full mfa_serial ARN instead of the one derived
+            from email. Takes precedence over mfa_suffix and email.
+        mfa_suffix: If provided (and mfa_serial is not), used as the device name in
+            arn:aws:iam::{org_account}:mfa/{mfa_suffix} instead of the email address.
     """
     org_account = "622626885786"
+    if mfa_serial:
+        effective_mfa_serial = mfa_serial
+    elif mfa_suffix:
+        effective_mfa_serial = f"arn:aws:iam::{org_account}:mfa/{mfa_suffix}"
+    elif email:
+        effective_mfa_serial = f"arn:aws:iam::{org_account}:mfa/{email}"
+    else:
+        effective_mfa_serial = None
+
     if access_key:
         subprocess.run(
             ["aws", "configure", "set", "profile.gds-users.aws_access_key_id", access_key],
@@ -26,9 +46,9 @@ def _set_default_configuration(email: str = None, access_key: str = None, secret
             capture_output=True,
             text=True,
         )
-    if email:
+    if effective_mfa_serial:
         subprocess.run(
-            ["aws", "configure", "set", "profile.gds-users.mfa_serial", f"arn:aws:iam::{org_account}:mfa/{email}"],
+            ["aws", "configure", "set", "profile.gds-users.mfa_serial", effective_mfa_serial],
             check=True,
             capture_output=True,
             text=True,
@@ -88,13 +108,17 @@ def _set_default_configuration(email: str = None, access_key: str = None, secret
                     capture_output=True,
                     text=True,
                 )
+
+    if effective_mfa_serial:
+        for env, profiles in profiles_env.items():
+            for profile, _alias in profiles:
                 subprocess.run(
                     [
                         "aws",
                         "configure",
                         "set",
                         f"profile.assume-ds-role-{env}-{profile}.mfa_serial",
-                        f"arn:aws:iam::{org_account}:mfa/{email}",
+                        effective_mfa_serial,
                     ],
                     check=True,
                     capture_output=True,
