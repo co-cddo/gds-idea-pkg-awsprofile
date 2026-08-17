@@ -103,10 +103,11 @@ def set(alias: str, profile: str):
 @click.option("--email", help="Email address used for AWS access.")
 @click.option("--access-key", help="AWS access key.")
 @click.option("--secret-key", help="AWS secret key.")
-def init(email: str, access_key: str, secret_key: str):
+@click.option("--mfa", help="AWS mfa name, can be only suffix if email given.")
+def init(email: str, access_key: str, secret_key: str, mfa: str):
     """Create or update aws credentials files and fill them with profiles used by GDS IDEA team."""
     from awsprofile.create_credentials import _set_default_configuration
     from awsprofile.prerequisites import _check_prerequisites
 
     _check_prerequisites()
-    _set_default_configuration(email, access_key, secret_key)
+    _set_default_configuration(email, access_key, secret_key, mfa)

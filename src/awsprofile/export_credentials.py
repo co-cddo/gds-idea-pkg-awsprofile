@@ -2,13 +2,14 @@ import configparser
 import datetime
 import json
 import os
-import subprocess
 import sys
 
 import boto3
 import botocore.session
 import click
 from botocore import credentials
+
+from awsprofile.utils import _execute_command
 
 
 def _list_profiles() -> list[str]:
@@ -17,12 +18,7 @@ def _list_profiles() -> list[str]:
     Returns:
         AWS profiles names list.
     """
-    try:
-        completed_process = subprocess.run(
-            ["aws", "configure", "list-profiles"], check=True, capture_output=True, text=True
-        )
-    except subprocess.CalledProcessError as e:
-        raise e
+    completed_process = _execute_command(["aws", "configure", "list-profiles"])
 
     stdout = completed_process.stdout
     stdout_list = stdout.strip("\n").split("\n")
@@ -101,9 +97,7 @@ def _set_alias(alias, profile):
         click.echo(f"Existing aliases:\n{echo_aliases}", err=True)
         sys.exit(1)
 
-    subprocess.run(
-        ["aws", "configure", "set", "alias", alias, "--profile", profile], check=True, capture_output=True, text=True
-    )
+    _execute_command(["aws", "configure", "set", "alias", alias, "--profile", profile])
 
 
 def _export_credentials(profile: str, export_profile: str = None):
@@ -122,7 +116,7 @@ def _export_credentials(profile: str, export_profile: str = None):
     profile = aliases.get(profile, profile)
 
     if profile in profiles:
-        completed_process = subprocess.run(["aws", "--version"], check=True, capture_output=True, text=True)
+        completed_process = _execute_command(["aws", "--version"])
         aws_cli_version = completed_process.stdout
         aws_cli_version = int(aws_cli_version.split(" ", 1)[0].split("/", 1)[1].split(".", 1)[0])
 
@@ -154,12 +148,7 @@ def _export_credentials(profile: str, export_profile: str = None):
             expiration = None
 
         else:
-            completed_process = subprocess.run(
-                ["aws", "configure", "export-credentials", "--profile", profile],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            completed_process = _execute_command(["aws", "configure", "export-credentials", "--profile", profile])
 
             stdout = completed_process.stdout
             stdout_json = json.loads(stdout)
@@ -181,17 +170,10 @@ def _export_credentials(profile: str, export_profile: str = None):
         click.echo(f"Available profiles:\n{echo_profiles}", err=True)
         sys.exit(1)
 
-    try:
-        completed_process = subprocess.run(
-            ["aws", "configure", "set", "aws_access_key_id", access_key_id, "--profile", export_profile],
-            check=True,
-            capture_output=True,
-            text=True,
+        completed_process = _execute_command(
+            ["aws", "configure", "set", "aws_access_key_id", access_key_id, "--profile", export_profile]
         )
-    except subprocess.CalledProcessError as e:
-        raise e
-    try:
-        completed_process = subprocess.run(
+        completed_process = _execute_command(
             [
                 "aws",
                 "configure",
@@ -201,31 +183,13 @@ def _export_credentials(profile: str, export_profile: str = None):
                 "--profile",
                 export_profile,
             ],
-            check=True,
-            capture_output=True,
-            text=True,
         )
-    except subprocess.CalledProcessError as e:
-        raise e
-    try:
-        completed_process = subprocess.run(
-            ["aws", "configure", "set", "aws_session_token", session_token, "--profile", export_profile],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as e:
-        raise e
-    try:
-        completed_process = subprocess.run(
-            ["aws", "configure", "set", "credentials_profile", profile, "--profile", export_profile],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as e:
-        raise e
-
+    completed_process = _execute_command(
+        ["aws", "configure", "set", "aws_session_token", session_token, "--profile", export_profile]
+    )
+    completed_process = _execute_command(
+        ["aws", "configure", "set", "credentials_profile", profile, "--profile", export_profile]
+    )
     if expiration is not None:
         time_now = datetime.datetime.now(datetime.UTC)
         time_expiration = datetime.datetime.strptime(expiration, "%Y-%m-%dT%H:%M:%S%z")
