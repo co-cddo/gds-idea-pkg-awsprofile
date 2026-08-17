@@ -76,7 +76,7 @@ A few terms used throughout this doc and the CLI's own help text:
 
 1. Configure AWS credentials and config files:
    - If you already have a `gds-users` profile set up: \
-     `awsprofile init --email {your-aws-account-email}`
+     `awsprofile init --email {your-aws-account-email} --mfa {your-aws-account-mfa}`
    - Otherwise: \
      `awsprofile init --email {your-aws-account-email} --access-key {access key from credentials file} --secret-key {secret key from credentials file}`
 2. Check what's available:
