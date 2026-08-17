@@ -11,10 +11,10 @@ def _set_default_configuration(email: str = None, access_key: str = None, secret
         access_key: If provided, creates or updates gds-users profile aws_access_key_id field.
         secret_key: If provided, creates or updates gds-users profile secret_key field.
         mfa: Creates or updates profiles mfa field. If an email address is provided,
-        only the suffix can be provided, otherwise the full MFA name must be provided..
+        only the suffix can be provided, otherwise the full MFA name must be provided.
     """
     org_account = "622626885786"
-    mfa = email + mfa if mfa and email else mfa
+    mfa = email + mfa if mfa is not None and not mfa.startswith(email) and email else mfa
     if access_key:
         _execute_command(["aws", "configure", "set", "profile.gds-users.aws_access_key_id", access_key])
     if secret_key:
