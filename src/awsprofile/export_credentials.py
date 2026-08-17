@@ -170,20 +170,20 @@ def _export_credentials(profile: str, export_profile: str = None):
         click.echo(f"Available profiles:\n{echo_profiles}", err=True)
         sys.exit(1)
 
-        completed_process = _execute_command(
-            ["aws", "configure", "set", "aws_access_key_id", access_key_id, "--profile", export_profile]
-        )
-        completed_process = _execute_command(
-            [
-                "aws",
-                "configure",
-                "set",
-                "aws_secret_access_key",
-                secret_access_key,
-                "--profile",
-                export_profile,
-            ],
-        )
+    completed_process = _execute_command(
+        ["aws", "configure", "set", "aws_access_key_id", access_key_id, "--profile", export_profile]
+    )
+    completed_process = _execute_command(
+        [
+            "aws",
+            "configure",
+            "set",
+            "aws_secret_access_key",
+            secret_access_key,
+            "--profile",
+            export_profile,
+        ],
+    )
     completed_process = _execute_command(
         ["aws", "configure", "set", "aws_session_token", session_token, "--profile", export_profile]
     )
