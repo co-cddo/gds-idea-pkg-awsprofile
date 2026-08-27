@@ -7,6 +7,7 @@ import botocore.exceptions
 import pytest
 
 from awsprofile import export_credentials as ec
+from awsprofile import utils
 
 
 def _write_config(path, sections):
@@ -96,7 +97,7 @@ def _fake_boto3_session_factory(fake_credentials=None, raise_error=None):
 @pytest.fixture(autouse=True)
 def _patch_botocore_session(monkeypatch):
     """Every `_export_credentials` test needs the botocore session faked out."""
-    monkeypatch.setattr(ec.botocore.session, "Session", _FakeBotocoreSession)
+    monkeypatch.setattr(utils.botocore.session, "Session", _FakeBotocoreSession)
 
 
 class TestListProfiles:
@@ -175,12 +176,12 @@ class TestDictCredentialsProfiles:
 class TestGetExpiration:
     def test_returns_expiry_time_when_present(self, aws_home, monkeypatch):
         expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=15)
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
 
         assert ec._get_expiration("assume-ds-role-dev-readonly") == expiry
 
     def test_returns_none_for_static_credentials(self, aws_home, monkeypatch):
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         assert ec._get_expiration("gds-users") is None
 
@@ -192,19 +193,19 @@ class TestGetExpiration:
             def get_credentials(self):
                 return None
 
-        monkeypatch.setattr(ec.boto3, "Session", _NoCredsSession)
+        monkeypatch.setattr(utils.boto3, "Session", _NoCredsSession)
 
         assert ec._get_expiration("default") is None
 
     def test_returns_none_on_client_error(self, aws_home, monkeypatch):
         error = botocore.exceptions.ClientError({"Error": {"Code": "AccessDenied", "Message": "boom"}}, "AssumeRole")
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
 
         assert ec._get_expiration("assume-ds-role-dev-readonly") is None
 
     def test_returns_none_on_param_validation_error(self, aws_home, monkeypatch):
         error = botocore.exceptions.ParamValidationError(report="bad params")
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
 
         assert ec._get_expiration("assume-ds-role-dev-readonly") is None
 
@@ -246,7 +247,7 @@ class TestSetAlias:
 class TestExportCredentials:
     def test_writes_credentials_and_credentials_profile_to_default(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         ec._export_credentials("assume-ds-role-dev-readonly")
 
@@ -265,7 +266,7 @@ class TestExportCredentials:
 
     def test_resolves_alias_before_signing_in(self, aws_home, monkeypatch):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-poweraccess": {"alias": "dev"}})
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         ec._export_credentials("dev")
 
@@ -274,7 +275,7 @@ class TestExportCredentials:
 
     def test_writes_to_custom_export_profile(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-bedrockonly": {"alias": "bedrock"}})
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         ec._export_credentials("bedrock", export_profile="bedrockonly")
 
@@ -289,7 +290,7 @@ class TestExportCredentials:
     def test_reports_minutes_left_when_expiry_time_is_set(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=30)
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
 
         ec._export_credentials("assume-ds-role-dev-readonly")
 
@@ -319,7 +320,7 @@ class TestExportCredentials:
     def test_exits_on_client_error(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         error = botocore.exceptions.ClientError({"Error": {"Code": "AccessDenied", "Message": "boom"}}, "AssumeRole")
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
 
         with pytest.raises(SystemExit) as exc_info:
             ec._export_credentials("assume-ds-role-dev-readonly")
@@ -330,7 +331,7 @@ class TestExportCredentials:
     def test_exits_on_param_validation_error(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         error = botocore.exceptions.ParamValidationError(report="bad params")
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
 
         with pytest.raises(SystemExit) as exc_info:
             ec._export_credentials("assume-ds-role-dev-readonly")

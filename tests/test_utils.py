@@ -1,10 +1,20 @@
 """Tests for `awsprofile.utils` (the configparser helpers)."""
 
 import configparser
+import datetime
+import json
 import os
 import stat
 
-from awsprofile.utils import _config_set, _credentials_set
+import botocore.credentials
+
+from awsprofile.utils import (
+    _boto3_session,
+    _cached_credential_fetcher,
+    _config_set,
+    _credentials_set,
+    _get_cached_expiration,
+)
 
 
 def _read(path):
@@ -83,3 +93,128 @@ class TestCredentialsSet:
 
         config = _read(aws_home.credentials)
         assert config.get("default", "aws_session_token") == "new-token"
+
+
+class _RaisingSTSClient:
+    """A fake STS client that fails the test if it's ever actually called."""
+
+    def assume_role(self, **kwargs):
+        raise AssertionError("assume_role must never be called by _cached_credential_fetcher/_get_cached_expiration")
+
+
+class _FakeSourceCredentials:
+    access_key = "AKIAFAKESOURCE"
+    secret_key = "fakesourcesecret"
+    token = None
+    method = "explicit"
+
+
+def _make_fetcher(cache_dir):
+    """Build a real `AssumeRoleCredentialFetcher` backed by a cache in `cache_dir`.
+
+    Uses fakes for the STS client and MFA prompter (both raise if called) so
+    tests can assert that reading the cache never triggers a live AssumeRole
+    call or an MFA prompt.
+    """
+    return botocore.credentials.AssumeRoleCredentialFetcher(
+        client_creator=lambda *args, **kwargs: _RaisingSTSClient(),
+        source_credentials=_FakeSourceCredentials(),
+        role_arn="arn:aws:iam::123456789012:role/test",
+        extra_args={},
+        mfa_prompter=lambda prompt: (_ for _ in ()).throw(AssertionError("must not prompt for MFA")),
+        cache=botocore.credentials.JSONFileCache(str(cache_dir)),
+    )
+
+
+def _write_cache_entry(cache_dir, fetcher, expiration: datetime.datetime):
+    """Write a fake assume-role cache entry, as botocore itself would."""
+    entry = {
+        "Credentials": {
+            "AccessKeyId": "AKIAASSUMED",
+            "SecretAccessKey": "assumedsecret",
+            "SessionToken": "assumedtoken",
+            "Expiration": expiration.strftime("%Y-%m-%dT%H:%M:%S%Z"),
+        }
+    }
+    cache_path = cache_dir / f"{fetcher._cache_key}.json"
+    cache_path.write_text(json.dumps(entry))
+
+
+class TestBoto3Session:
+    def test_returns_boto3_session_with_assume_role_cache_configured(self, aws_home):
+        _config_set("gds-users", "region", "eu-west-2")
+
+        session = _boto3_session("gds-users")
+
+        provider = session._session.get_component("credential_provider").get_provider("assume-role")
+        assert isinstance(provider.cache, botocore.credentials.JSONFileCache)
+
+
+class TestCachedCredentialFetcher:
+    def test_unwraps_mfa_serial_refresher_wrapper(self, tmp_path):
+        fetcher = _make_fetcher(tmp_path)
+        refresher = botocore.credentials.create_mfa_serial_refresher(fetcher.fetch_credentials)
+        creds = botocore.credentials.DeferredRefreshableCredentials(method="assume-role", refresh_using=refresher)
+
+        assert _cached_credential_fetcher(creds) is fetcher
+
+    def test_finds_fetcher_without_mfa_wrapper(self, tmp_path):
+        fetcher = _make_fetcher(tmp_path)
+        creds = botocore.credentials.DeferredRefreshableCredentials(
+            method="assume-role", refresh_using=fetcher.fetch_credentials
+        )
+
+        assert _cached_credential_fetcher(creds) is fetcher
+
+    def test_returns_none_for_static_credentials(self):
+        creds = botocore.credentials.Credentials("AKIA", "secret", None)
+
+        assert _cached_credential_fetcher(creds) is None
+
+
+class TestGetCachedExpiration:
+    def test_returns_expiration_from_valid_cache_entry(self, tmp_path):
+        fetcher = _make_fetcher(tmp_path)
+        creds = botocore.credentials.DeferredRefreshableCredentials(
+            method="assume-role", refresh_using=fetcher.fetch_credentials
+        )
+        expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
+        _write_cache_entry(tmp_path, fetcher, expiry)
+
+        result = _get_cached_expiration(creds)
+
+        assert result is not None
+        assert abs((result - expiry).total_seconds()) < 1
+
+    def test_returns_actual_past_expiration_for_expired_cache_entry(self, tmp_path):
+        """An expired cache entry must still report its real (past) expiration.
+
+        `CachedCredentialFetcher._load_from_cache()` would filter this out and
+        return `None` - `_get_cached_expiration` deliberately bypasses that so
+        `status` can report "expired N minutes ago" instead of treating an
+        expired sign-in the same as never having signed in at all.
+        """
+        fetcher = _make_fetcher(tmp_path)
+        creds = botocore.credentials.DeferredRefreshableCredentials(
+            method="assume-role", refresh_using=fetcher.fetch_credentials
+        )
+        expired = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+        _write_cache_entry(tmp_path, fetcher, expired)
+
+        result = _get_cached_expiration(creds)
+
+        assert result is not None
+        assert abs((result - expired).total_seconds()) < 1
+
+    def test_returns_none_when_no_cache_entry_exists(self, tmp_path):
+        fetcher = _make_fetcher(tmp_path)
+        creds = botocore.credentials.DeferredRefreshableCredentials(
+            method="assume-role", refresh_using=fetcher.fetch_credentials
+        )
+
+        assert _get_cached_expiration(creds) is None
+
+    def test_returns_none_for_static_credentials(self):
+        creds = botocore.credentials.Credentials("AKIA", "secret", None)
+
+        assert _get_cached_expiration(creds) is None
