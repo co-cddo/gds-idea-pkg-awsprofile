@@ -145,7 +145,11 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
     secret key and session token are written into `export_profile` in
     `~/.aws/credentials`, and `export_profile`'s `credentials_profile`
     field in `~/.aws/config` is set to `profile`, so `awsprofile list` can
-    later report where those credentials came from.
+    later report where those credentials came from. After signing in, an
+    informational note is always printed stating which profile the
+    credentials were written to, and additionally that `"default"` was
+    not changed if `export_profile` isn't `"default"` (since it's easy to
+    assume every sign-in updates `"default"` when it doesn't).
 
     Args:
         profile: Profile or alias name to sign in with.
@@ -220,3 +224,8 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
             click.echo(f"Session valid, {echo_time_diff} minutes left", err=False)
     else:
         click.echo("Session valid", err=False)
+
+    if export_profile == "default":
+        click.echo(f"Note: credentials written to '{export_profile}'.", err=False)
+    else:
+        click.echo(f"Note: credentials written to '{export_profile}' - 'default' was not changed.", err=False)

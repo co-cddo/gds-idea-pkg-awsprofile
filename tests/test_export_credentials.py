@@ -221,7 +221,10 @@ class TestExportCredentials:
         config = _read(aws_home.config)
         assert config.get("default", "credentials_profile") == "assume-ds-role-dev-readonly"
 
-        assert "Session valid" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Session valid" in out
+        assert "Note: credentials written to 'default'." in out
+        assert "was not changed" not in out
 
     def test_resolves_alias_before_signing_in(self, aws_home, monkeypatch):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-poweraccess": {"alias": "dev"}})
@@ -232,7 +235,7 @@ class TestExportCredentials:
         config = _read(aws_home.config)
         assert config.get("default", "credentials_profile") == "assume-ds-role-dev-poweraccess"
 
-    def test_writes_to_custom_export_profile(self, aws_home, monkeypatch):
+    def test_writes_to_custom_export_profile(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-bedrockonly": {"alias": "bedrock"}})
         monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
@@ -242,6 +245,9 @@ class TestExportCredentials:
         assert creds.sections() == ["bedrockonly"]
         config = _read(aws_home.config)
         assert config.get("profile bedrockonly", "credentials_profile") == "assume-ds-role-dev-bedrockonly"
+
+        out = capsys.readouterr().out
+        assert "Note: credentials written to 'bedrockonly' - 'default' was not changed." in out
 
     def test_reports_minutes_left_when_expiry_time_is_set(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
