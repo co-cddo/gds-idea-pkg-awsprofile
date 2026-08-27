@@ -11,12 +11,18 @@ import datetime
 import os
 import sys
 
-import boto3
-import botocore.session
+import botocore.exceptions
 import click
-from botocore import credentials
 
-from awsprofile.utils import _config_set, _credentials_set
+from awsprofile.utils import (
+    _boto3_session,
+    _config_set,
+    _config_unset,
+    _credentials_set,
+    _credentials_unset,
+    _get_cached_expiration,
+    _invalidate_cached_credentials,
+)
 
 
 def _list_profiles() -> list[str]:
@@ -96,6 +102,45 @@ def _dict_credentials_profiles() -> dict[str, str]:
     return profiles
 
 
+def _get_expiration(profile: str) -> datetime.datetime | None:
+    """Get the expiration time of a profile's currently resolved credentials.
+
+    Resolves `profile`'s credentials via `boto3`/`botocore` (the same
+    session/cache construction as `_export_credentials`) and reads the
+    `_expiry_time` attribute straight off the resulting credentials object,
+    without freezing/refreshing them. Static (non-refreshable) credentials,
+    such as `gds-users`'s long-lived access key, don't have this attribute
+    and are treated as never expiring.
+
+    For assume-role profiles, `_expiry_time` is only populated once the
+    credentials have actually been refreshed at least once (e.g. by a
+    prior `awsprofile <profile>` sign-in in this same process). If it's not
+    set yet, this falls back to `_get_cached_expiration`, which reads the
+    same on-disk `~/.aws/cli/cache` entry the AWS CLI uses, without ever
+    forcing a fresh (and possibly MFA-prompting) sign-in.
+
+    Args:
+        profile: Profile name to inspect.
+
+    Returns:
+        The credentials' expiration time, or `None` if the profile has no
+        resolvable/cached credentials, or its credentials don't expire.
+    """
+    try:
+        aws_credentials = _boto3_session(profile).get_credentials()
+    except (botocore.exceptions.ClientError, botocore.exceptions.ParamValidationError):
+        return None
+
+    if aws_credentials is None:
+        return None
+
+    expiry_time = getattr(aws_credentials, "_expiry_time", None)
+    if expiry_time is not None:
+        return expiry_time
+
+    return _get_cached_expiration(aws_credentials)
+
+
 def _set_alias(alias: str, profile: str) -> None:
     """Set alias to aws profile.
 
@@ -135,7 +180,38 @@ def _set_alias(alias: str, profile: str) -> None:
     _config_set(profile, "alias", alias)
 
 
-def _export_credentials(profile: str, export_profile: str = None) -> None:
+def _clear_credentials(profile: str = "default") -> None:
+    """Remove previously exported credentials from a profile.
+
+    Undoes what `_export_credentials` writes: removes `aws_access_key_id`,
+    `aws_secret_access_key` and `aws_session_token` from `profile`'s section
+    in `~/.aws/credentials`, and its `credentials_profile` field in
+    `~/.aws/config`. Fields/sections that don't currently exist are simply
+    left alone (this never fails just because there's nothing to clear).
+
+    Args:
+        profile: Export profile to clear. Defaults to `"default"`.
+
+    Example:
+        >>> _clear_credentials()
+        # Removes the access key/secret key/session token/credentials_profile
+        # previously written to [default].
+        >>> _clear_credentials("bedrockonly")
+    """
+    _credentials_unset(profile, "aws_access_key_id")
+    _credentials_unset(profile, "aws_secret_access_key")
+    _credentials_unset(profile, "aws_session_token")
+    _config_unset(profile, "credentials_profile")
+
+    click.echo(f"Cleared exported credentials from '{profile}'.", err=False)
+
+
+def _export_credentials(
+    profile: str,
+    export_profile: str = None,
+    force_refresh: bool = False,
+    status_to_stderr: bool = False,
+) -> None:
     """Sign in to a profile (assuming a role via MFA if required) and write
     the resulting temporary credentials to another profile on disk.
 
@@ -144,8 +220,15 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
     in `~/.aws/cli/cache`, same as the AWS CLI). The resulting access key,
     secret key and session token are written into `export_profile` in
     `~/.aws/credentials`, and `export_profile`'s `credentials_profile`
-    field in `~/.aws/config` is set to `profile`, so `awsprofile list` can
-    later report where those credentials came from.
+    field in `~/.aws/config` is set to `profile`, so `awsprofile list`/
+    `awsprofile status` can later report where those credentials came
+    from (`awsprofile status` re-resolves the expiration directly from
+    `boto3`/`botocore` via `_get_expiration` rather than storing it).
+    After signing in, an
+    informational note is always printed stating which profile the
+    credentials were written to, and additionally that `"default"` was
+    not changed if `export_profile` isn't `"default"` (since it's easy to
+    assume every sign-in updates `"default"` when it doesn't).
 
     Args:
         profile: Profile or alias name to sign in with.
@@ -153,6 +236,17 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
             Defaults to `"default"`. Must not be an `assume-ds-role-*` or
             `gds-users` profile, since those are only ever used as sign-in
             sources, never as credential export targets.
+        force_refresh: If `True`, sign in again even if `profile` already
+            has a still-valid cached assume-role session, dropping the
+            existing `~/.aws/cli/cache` entry first (this may prompt for an
+            MFA code again). Defaults to `False`, matching the AWS CLI's
+            own reuse-until-expired behaviour.
+        status_to_stderr: If `True`, the "Session valid"/"...minutes left"
+            and "Note: credentials written to..." informational messages
+            are printed to stderr instead of stdout. Used by `awsprofile
+            export`, whose stdout is reserved for a shell snippet meant to
+            be `eval`'d, so any other output there would corrupt it.
+            Defaults to `False`.
 
     Example:
         >>> _export_credentials(profile="dev")
@@ -160,6 +254,11 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
         # under [default].
         >>> _export_credentials(profile="bedrock", export_profile="bedrockonly")
         # Signs in to the "bedrock" alias without touching [default].
+        >>> _export_credentials(profile="dev", force_refresh=True)
+        # Signs in again even if the current "dev" session hasn't expired.
+        >>> _export_credentials(profile="prod", export_profile="prod", status_to_stderr=True)
+        # Used internally by `awsprofile export prod` - status messages go
+        # to stderr so stdout stays clean for `eval`.
     """
     export_profile = "default" if export_profile is None else export_profile
     if export_profile.startswith("assume-ds-role") or export_profile == "gds-users":
@@ -170,18 +269,12 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
     profile = aliases.get(profile, profile)
 
     if profile in profiles:
-        cli_cache = os.path.join(os.path.expanduser("~"), ".aws/cli/cache")
-
-        # Construct botocore session with cache
-        session = botocore.session.Session(profile=profile)
-        session.get_component("credential_provider").get_provider("assume-role").cache = credentials.JSONFileCache(
-            cli_cache
-        )
-
-        session_boto = boto3.Session(botocore_session=session)
+        session_boto = _boto3_session(profile)
 
         try:
             aws_credentials = session_boto.get_credentials()
+            if force_refresh:
+                _invalidate_cached_credentials(aws_credentials)
             frozen_credentials = aws_credentials.get_frozen_credentials()
         except botocore.exceptions.ClientError as e:
             click.echo(click.style(e, fg="red"), err=True)
@@ -216,7 +309,15 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
         time_diff = time_expiration - time_now
 
         if time_diff > datetime.timedelta():
-            echo_time_diff = time_diff.total_seconds() // 60
-            click.echo(f"Session valid, {echo_time_diff} minutes left", err=False)
+            echo_time_diff = int(time_diff.total_seconds() // 60)
+            click.echo(f"Session valid, {echo_time_diff} minutes left", err=status_to_stderr)
     else:
-        click.echo("Session valid", err=False)
+        click.echo("Session valid", err=status_to_stderr)
+
+    if export_profile == "default":
+        click.echo(f"Note: credentials written to '{export_profile}'.", err=status_to_stderr)
+    else:
+        click.echo(
+            f"Note: credentials written to '{export_profile}' - 'default' was not changed.",
+            err=status_to_stderr,
+        )

@@ -9,6 +9,8 @@ covered by `test_export_credentials.py`, `test_create_credentials.py` and
 `test_prerequisites.py`.
 """
 
+import datetime
+
 from click.testing import CliRunner
 
 from awsprofile.cli import cli
@@ -26,7 +28,16 @@ class TestSignInShortcuts:
         result = invoke("dev")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "dev"}]
+        assert calls == [{"profile": "dev", "force_refresh": False}]
+
+    def test_dev_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("dev", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "dev", "force_refresh": True}]
 
     def test_prod_signs_in_with_prod_profile(self, monkeypatch):
         calls = []
@@ -35,7 +46,16 @@ class TestSignInShortcuts:
         result = invoke("prod")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "prod"}]
+        assert calls == [{"profile": "prod", "force_refresh": False}]
+
+    def test_prod_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("prod", "-r")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "prod", "force_refresh": True}]
 
     def test_integration_signs_in_with_integration_profile(self, monkeypatch):
         calls = []
@@ -44,7 +64,16 @@ class TestSignInShortcuts:
         result = invoke("integration")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "integration"}]
+        assert calls == [{"profile": "integration", "force_refresh": False}]
+
+    def test_integration_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("integration", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "integration", "force_refresh": True}]
 
     def test_bedrock_signs_in_to_bedrockonly_export_profile(self, monkeypatch):
         calls = []
@@ -53,7 +82,16 @@ class TestSignInShortcuts:
         result = invoke("bedrock")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "bedrock", "export_profile": "bedrockonly"}]
+        assert calls == [{"profile": "bedrock", "export_profile": "bedrockonly", "force_refresh": False}]
+
+    def test_bedrock_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("bedrock", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "bedrock", "export_profile": "bedrockonly", "force_refresh": True}]
 
 
 class TestProfileCommand:
@@ -64,7 +102,7 @@ class TestProfileCommand:
         result = invoke("profile")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "dev", "export_profile": "default"}]
+        assert calls == [{"profile": "dev", "export_profile": "default", "force_refresh": False}]
 
     def test_accepts_explicit_profile_and_export_profile(self, monkeypatch):
         calls = []
@@ -73,7 +111,102 @@ class TestProfileCommand:
         result = invoke("profile", "prod", "bedrockonly")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "prod", "export_profile": "bedrockonly"}]
+        assert calls == [{"profile": "prod", "export_profile": "bedrockonly", "force_refresh": False}]
+
+    def test_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("profile", "prod", "bedrockonly", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "prod", "export_profile": "bedrockonly", "force_refresh": True}]
+
+
+class TestExportCommand:
+    def test_defaults_target_name_to_alias(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "prod")
+
+        assert result.exit_code == 0
+        assert calls == [
+            {
+                "profile": "prod",
+                "export_profile": "prod",
+                "force_refresh": False,
+                "status_to_stderr": True,
+            }
+        ]
+
+    def test_accepts_explicit_target_name(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "dev", "my-dev-session")
+
+        assert result.exit_code == 0
+        assert calls == [
+            {
+                "profile": "dev",
+                "export_profile": "my-dev-session",
+                "force_refresh": False,
+                "status_to_stderr": True,
+            }
+        ]
+
+    def test_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "prod", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [
+            {
+                "profile": "prod",
+                "export_profile": "prod",
+                "force_refresh": True,
+                "status_to_stderr": True,
+            }
+        ]
+
+    def test_prints_export_and_unset_snippet_to_stdout(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: None)
+
+        result = invoke("export", "prod")
+
+        assert result.exit_code == 0
+        assert result.stdout == (
+            "export AWS_PROFILE=prod\nunset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN\n"
+        )
+
+    def test_refuses_to_target_default(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "dev", "default")
+
+        assert result.exit_code == 1
+        assert calls == []
+        assert "Refusing to export to 'default'" in result.output
+
+
+class TestShellInitCommand:
+    def test_prints_wrapper_function(self):
+        result = invoke("shell-init")
+
+        assert result.exit_code == 0
+        assert "awsprofile() {" in result.output
+        assert 'if [[ "$1" == "export" ]]; then' in result.output
+        assert 'eval "$out"' in result.output
+
+    def test_rejects_extra_arguments(self):
+        result = invoke("shell-init", "zsh")
+
+        assert result.exit_code != 0
+        assert "no such option" in result.output.lower() or "unexpected" in result.output.lower()
 
 
 class TestListCommand:
@@ -92,6 +225,86 @@ class TestListCommand:
         assert result.exit_code == 0
         assert "assume-ds-role-dev-poweraccess (dev)" in result.output
         assert "default (assume-ds-role-dev-poweraccess)" in result.output
+
+
+class TestStatusCommand:
+    def test_prints_source_profile_alias_and_expiration_for_each_export_profile(self, monkeypatch):
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_aliases",
+            lambda: ({"dev": "assume-ds-role-dev-poweraccess"}, ["assume-ds-role-dev-poweraccess", "default"]),
+        )
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_credentials_profiles",
+            lambda: {"default": "assume-ds-role-dev-poweraccess"},
+        )
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._get_expiration",
+            lambda profile: datetime.datetime(2099, 1, 1, tzinfo=datetime.UTC),
+        )
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "default: signed in from assume-ds-role-dev-poweraccess (dev) - expires in" in result.output
+
+    def test_prints_no_expiration_recorded_when_expiration_missing(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._dict_aliases", lambda: ({}, ["default"]))
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_credentials_profiles",
+            lambda: {"default": "assume-ds-role-dev-poweraccess"},
+        )
+        monkeypatch.setattr("awsprofile.export_credentials._get_expiration", lambda profile: None)
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "default: signed in from assume-ds-role-dev-poweraccess - no expiration recorded" in result.output
+
+    def test_prints_expired_when_expiration_is_in_the_past(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._dict_aliases", lambda: ({}, ["default"]))
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_credentials_profiles",
+            lambda: {"default": "assume-ds-role-dev-poweraccess"},
+        )
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._get_expiration",
+            lambda profile: datetime.datetime(2000, 1, 1, tzinfo=datetime.UTC),
+        )
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "expired" in result.output
+        assert "ago" in result.output
+
+    def test_prints_message_when_no_profiles_have_credentials(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._dict_aliases", lambda: ({}, []))
+        monkeypatch.setattr("awsprofile.export_credentials._dict_credentials_profiles", lambda: {})
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "No profiles currently hold exported credentials." in result.output
+
+
+class TestClearCommand:
+    def test_defaults_to_default_profile(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._clear_credentials", lambda *args: calls.append(args))
+
+        result = invoke("clear")
+
+        assert result.exit_code == 0
+        assert calls == [("default",)]
+
+    def test_accepts_explicit_profile(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._clear_credentials", lambda *args: calls.append(args))
+
+        result = invoke("clear", "bedrockonly")
+
+        assert result.exit_code == 0
+        assert calls == [("bedrockonly",)]
 
 
 class TestSetCommand:
@@ -161,6 +374,19 @@ class TestHelpAndVersion:
         assert "awsprofile" in result.output
 
     def test_every_command_help_succeeds(self):
-        for command in ("dev", "prod", "integration", "bedrock", "profile", "list", "set", "init"):
+        for command in (
+            "dev",
+            "prod",
+            "integration",
+            "bedrock",
+            "profile",
+            "export",
+            "shell-init",
+            "list",
+            "status",
+            "clear",
+            "set",
+            "init",
+        ):
             result = invoke(command, "--help")
             assert result.exit_code == 0, f"{command} --help failed: {result.output}"

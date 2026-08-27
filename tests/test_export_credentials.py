@@ -7,6 +7,7 @@ import botocore.exceptions
 import pytest
 
 from awsprofile import export_credentials as ec
+from awsprofile import utils
 
 
 def _write_config(path, sections):
@@ -96,7 +97,7 @@ def _fake_boto3_session_factory(fake_credentials=None, raise_error=None):
 @pytest.fixture(autouse=True)
 def _patch_botocore_session(monkeypatch):
     """Every `_export_credentials` test needs the botocore session faked out."""
-    monkeypatch.setattr(ec.botocore.session, "Session", _FakeBotocoreSession)
+    monkeypatch.setattr(utils.botocore.session, "Session", _FakeBotocoreSession)
 
 
 class TestListProfiles:
@@ -172,6 +173,43 @@ class TestDictCredentialsProfiles:
         assert ec._dict_credentials_profiles() == {}
 
 
+class TestGetExpiration:
+    def test_returns_expiry_time_when_present(self, aws_home, monkeypatch):
+        expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=15)
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
+
+        assert ec._get_expiration("assume-ds-role-dev-readonly") == expiry
+
+    def test_returns_none_for_static_credentials(self, aws_home, monkeypatch):
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+
+        assert ec._get_expiration("gds-users") is None
+
+    def test_returns_none_when_no_credentials_resolved(self, aws_home, monkeypatch):
+        class _NoCredsSession:
+            def __init__(self, botocore_session=None):
+                pass
+
+            def get_credentials(self):
+                return None
+
+        monkeypatch.setattr(utils.boto3, "Session", _NoCredsSession)
+
+        assert ec._get_expiration("default") is None
+
+    def test_returns_none_on_client_error(self, aws_home, monkeypatch):
+        error = botocore.exceptions.ClientError({"Error": {"Code": "AccessDenied", "Message": "boom"}}, "AssumeRole")
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+
+        assert ec._get_expiration("assume-ds-role-dev-readonly") is None
+
+    def test_returns_none_on_param_validation_error(self, aws_home, monkeypatch):
+        error = botocore.exceptions.ParamValidationError(report="bad params")
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+
+        assert ec._get_expiration("assume-ds-role-dev-readonly") is None
+
+
 class TestSetAlias:
     def test_sets_alias_on_existing_profile(self, aws_home):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
@@ -206,10 +244,78 @@ class TestSetAlias:
         assert "does exist" in capsys.readouterr().err
 
 
-class TestExportCredentials:
+class TestClearCredentials:
+    def test_clears_default_profile_by_default(self, aws_home, capsys):
+        _write_config(aws_home.config, {"default": {"credentials_profile": "assume-ds-role-dev-readonly"}})
+        _write_config(
+            aws_home.credentials,
+            {
+                "default": {
+                    "aws_access_key_id": "AKIAFAKE",
+                    "aws_secret_access_key": "secretfake",
+                    "aws_session_token": "tokenfake",
+                }
+            },
+        )
+
+        ec._clear_credentials()
+
+        creds = _read(aws_home.credentials)
+        assert creds.has_option("default", "aws_access_key_id") is False
+        assert creds.has_option("default", "aws_secret_access_key") is False
+        assert creds.has_option("default", "aws_session_token") is False
+        config = _read(aws_home.config)
+        assert config.has_option("default", "credentials_profile") is False
+
+        assert "Cleared exported credentials from 'default'." in capsys.readouterr().out
+
+    def test_clears_custom_export_profile(self, aws_home):
+        _write_config(
+            aws_home.config, {"profile bedrockonly": {"credentials_profile": "assume-ds-role-dev-bedrockonly"}}
+        )
+        _write_config(aws_home.credentials, {"bedrockonly": {"aws_access_key_id": "AKIAFAKE"}})
+
+        ec._clear_credentials("bedrockonly")
+
+        creds = _read(aws_home.credentials)
+        assert creds.has_option("bedrockonly", "aws_access_key_id") is False
+        config = _read(aws_home.config)
+        assert config.has_option("profile bedrockonly", "credentials_profile") is False
+
+    def test_leaves_other_profiles_untouched(self, aws_home):
+        _write_config(
+            aws_home.config,
+            {
+                "default": {"credentials_profile": "assume-ds-role-dev-readonly"},
+                "profile bedrockonly": {"credentials_profile": "assume-ds-role-dev-bedrockonly", "alias": "keep-me"},
+            },
+        )
+        _write_config(
+            aws_home.credentials,
+            {
+                "default": {"aws_access_key_id": "AKIAFAKE"},
+                "bedrockonly": {"aws_access_key_id": "AKIAOTHER"},
+            },
+        )
+
+        ec._clear_credentials("default")
+
+        creds = _read(aws_home.credentials)
+        assert creds.get("bedrockonly", "aws_access_key_id") == "AKIAOTHER"
+        config = _read(aws_home.config)
+        assert config.get("profile bedrockonly", "credentials_profile") == "assume-ds-role-dev-bedrockonly"
+        assert config.get("profile bedrockonly", "alias") == "keep-me"
+
+    def test_no_op_when_nothing_was_ever_exported(self, aws_home, capsys):
+        ec._clear_credentials()
+
+        assert not aws_home.credentials.exists()
+        out = capsys.readouterr().out
+        assert "Cleared exported credentials from 'default'." in out
+
     def test_writes_credentials_and_credentials_profile_to_default(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         ec._export_credentials("assume-ds-role-dev-readonly")
 
@@ -221,20 +327,23 @@ class TestExportCredentials:
         config = _read(aws_home.config)
         assert config.get("default", "credentials_profile") == "assume-ds-role-dev-readonly"
 
-        assert "Session valid" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "Session valid" in out
+        assert "Note: credentials written to 'default'." in out
+        assert "was not changed" not in out
 
     def test_resolves_alias_before_signing_in(self, aws_home, monkeypatch):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-poweraccess": {"alias": "dev"}})
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         ec._export_credentials("dev")
 
         config = _read(aws_home.config)
         assert config.get("default", "credentials_profile") == "assume-ds-role-dev-poweraccess"
 
-    def test_writes_to_custom_export_profile(self, aws_home, monkeypatch):
+    def test_writes_to_custom_export_profile(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-bedrockonly": {"alias": "bedrock"}})
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
 
         ec._export_credentials("bedrock", export_profile="bedrockonly")
 
@@ -243,14 +352,28 @@ class TestExportCredentials:
         config = _read(aws_home.config)
         assert config.get("profile bedrockonly", "credentials_profile") == "assume-ds-role-dev-bedrockonly"
 
+        out = capsys.readouterr().out
+        assert "Note: credentials written to 'bedrockonly' - 'default' was not changed." in out
+
     def test_reports_minutes_left_when_expiry_time_is_set(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=30)
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
 
         ec._export_credentials("assume-ds-role-dev-readonly")
 
         assert "minutes left" in capsys.readouterr().out
+
+    def test_status_to_stderr_sends_informational_messages_to_stderr(self, aws_home, monkeypatch, capsys):
+        _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+
+        ec._export_credentials("assume-ds-role-dev-readonly", status_to_stderr=True)
+
+        out, err = capsys.readouterr()
+        assert out == ""
+        assert "Session valid" in err
+        assert "Note: credentials written to 'default'." in err
 
     def test_rejects_assume_role_export_profile(self, aws_home):
         with pytest.raises(SystemExit) as exc_info:
@@ -276,7 +399,7 @@ class TestExportCredentials:
     def test_exits_on_client_error(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         error = botocore.exceptions.ClientError({"Error": {"Code": "AccessDenied", "Message": "boom"}}, "AssumeRole")
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
 
         with pytest.raises(SystemExit) as exc_info:
             ec._export_credentials("assume-ds-role-dev-readonly")
@@ -287,9 +410,30 @@ class TestExportCredentials:
     def test_exits_on_param_validation_error(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         error = botocore.exceptions.ParamValidationError(report="bad params")
-        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
 
         with pytest.raises(SystemExit) as exc_info:
             ec._export_credentials("assume-ds-role-dev-readonly")
 
         assert exc_info.value.code == 1
+
+    def test_does_not_invalidate_cache_by_default(self, aws_home, monkeypatch):
+        _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        calls = []
+        monkeypatch.setattr(ec, "_invalidate_cached_credentials", lambda creds: calls.append(creds))
+
+        ec._export_credentials("assume-ds-role-dev-readonly")
+
+        assert calls == []
+
+    def test_force_refresh_invalidates_cache_before_freezing(self, aws_home, monkeypatch):
+        _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
+        fake_credentials = _FakeCredentials()
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(fake_credentials))
+        calls = []
+        monkeypatch.setattr(ec, "_invalidate_cached_credentials", lambda creds: calls.append(creds))
+
+        ec._export_credentials("assume-ds-role-dev-readonly", force_refresh=True)
+
+        assert calls == [fake_credentials]
