@@ -18,11 +18,69 @@ def _list_profiles() -> list[str]:
     Returns:
         AWS profiles names list.
     """
-    completed_process = _execute_command(["aws", "configure", "list-profiles"])
+    profiles = []
 
-    stdout = completed_process.stdout
-    stdout_list = stdout.strip("\n").split("\n")
-    return stdout_list
+    credentials_config = configparser.RawConfigParser()
+    credentials_config.read(os.path.expanduser("~/.aws/credentials"))
+    profiles.extend(credentials_config.sections())
+
+    config = configparser.RawConfigParser()
+    config.read(os.path.expanduser("~/.aws/config"))
+    for section in config.sections():
+        section_parsed = section.replace("profile", "").strip()
+        if section_parsed not in profiles:
+            profiles.append(section_parsed)
+
+    return profiles
+
+
+def _config_set(profile: str, key: str, value: str) -> None:
+    """Set a key/value pair for a profile in the aws config file (~/.aws/config).
+
+    Mirrors `aws configure set <key> <value> --profile <profile>` for keys that
+    the AWS CLI stores in the config file (e.g. alias, credentials_profile).
+
+    Args:
+        profile: Profile name to set the value for.
+        key: Config key to set.
+        value: Value to set.
+    """
+    config_path = os.path.expanduser("~/.aws/config")
+    config = configparser.RawConfigParser()
+    config.read(config_path)
+
+    section = "default" if profile == "default" else f"profile {profile}"
+    if not config.has_section(section):
+        config.add_section(section)
+    config.set(section, key, value)
+
+    with open(config_path, "w") as config_file:
+        config.write(config_file)
+
+
+def _credentials_set(profile: str, key: str, value: str) -> None:
+    """Set a key/value pair for a profile in the aws credentials file (~/.aws/credentials).
+
+    Mirrors `aws configure set <key> <value> --profile <profile>` for keys that
+    the AWS CLI stores in the credentials file (e.g. aws_access_key_id,
+    aws_secret_access_key, aws_session_token).
+
+    Args:
+        profile: Profile name to set the value for.
+        key: Credentials key to set.
+        value: Value to set.
+    """
+    credentials_path = os.path.expanduser("~/.aws/credentials")
+    config = configparser.RawConfigParser()
+    config.read(credentials_path)
+
+    if not config.has_section(profile):
+        config.add_section(profile)
+    config.set(profile, key, value)
+
+    with open(credentials_path, "w") as credentials_file:
+        config.write(credentials_file)
+    os.chmod(credentials_path, 0o600)
 
 
 def _dict_aliases() -> tuple[dict[str, str], list[str]]:
@@ -97,7 +155,7 @@ def _set_alias(alias, profile):
         click.echo(f"Existing aliases:\n{echo_aliases}", err=True)
         sys.exit(1)
 
-    _execute_command(["aws", "configure", "set", "alias", alias, "--profile", profile])
+    _config_set(profile, "alias", alias)
 
 
 def _export_credentials(profile: str, export_profile: str = None):
@@ -170,26 +228,10 @@ def _export_credentials(profile: str, export_profile: str = None):
         click.echo(f"Available profiles:\n{echo_profiles}", err=True)
         sys.exit(1)
 
-    completed_process = _execute_command(
-        ["aws", "configure", "set", "aws_access_key_id", access_key_id, "--profile", export_profile]
-    )
-    completed_process = _execute_command(
-        [
-            "aws",
-            "configure",
-            "set",
-            "aws_secret_access_key",
-            secret_access_key,
-            "--profile",
-            export_profile,
-        ],
-    )
-    completed_process = _execute_command(
-        ["aws", "configure", "set", "aws_session_token", session_token, "--profile", export_profile]
-    )
-    completed_process = _execute_command(
-        ["aws", "configure", "set", "credentials_profile", profile, "--profile", export_profile]
-    )
+    _credentials_set(export_profile, "aws_access_key_id", access_key_id)
+    _credentials_set(export_profile, "aws_secret_access_key", secret_access_key)
+    _credentials_set(export_profile, "aws_session_token", session_token)
+    _config_set(export_profile, "credentials_profile", profile)
     if expiration is not None:
         time_now = datetime.datetime.now(datetime.UTC)
         time_expiration = datetime.datetime.strptime(expiration, "%Y-%m-%dT%H:%M:%S%z")
