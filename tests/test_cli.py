@@ -156,6 +156,26 @@ class TestStatusCommand:
         assert "No profiles currently hold exported credentials." in result.output
 
 
+class TestClearCommand:
+    def test_defaults_to_default_profile(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._clear_credentials", lambda *args: calls.append(args))
+
+        result = invoke("clear")
+
+        assert result.exit_code == 0
+        assert calls == [("default",)]
+
+    def test_accepts_explicit_profile(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._clear_credentials", lambda *args: calls.append(args))
+
+        result = invoke("clear", "bedrockonly")
+
+        assert result.exit_code == 0
+        assert calls == [("bedrockonly",)]
+
+
 class TestSetCommand:
     def test_calls_set_alias_with_alias_and_profile(self, monkeypatch):
         calls = []
@@ -223,6 +243,6 @@ class TestHelpAndVersion:
         assert "awsprofile" in result.output
 
     def test_every_command_help_succeeds(self):
-        for command in ("dev", "prod", "integration", "bedrock", "profile", "list", "status", "set", "init"):
+        for command in ("dev", "prod", "integration", "bedrock", "profile", "list", "status", "clear", "set", "init"):
             result = invoke(command, "--help")
             assert result.exit_code == 0, f"{command} --help failed: {result.output}"

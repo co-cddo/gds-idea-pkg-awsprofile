@@ -83,6 +83,64 @@ def _credentials_set(profile: str, key: str, value: str) -> None:
     os.chmod(credentials_path, 0o600)
 
 
+def _config_unset(profile: str, key: str) -> None:
+    """Remove a key from a profile's section in the aws config file (~/.aws/config).
+
+    Mirrors `_config_set`, but removes the key instead of setting it. A
+    no-op if `~/.aws/config`, the profile's section, or the key don't
+    already exist.
+
+    Args:
+        profile: Profile name to remove the value from.
+        key: Config key to remove.
+
+    Example:
+        >>> _config_unset("default", "credentials_profile")
+        # Removes `credentials_profile` from `[default]` in ~/.aws/config.
+    """
+    config_path = os.path.expanduser("~/.aws/config")
+    config = configparser.RawConfigParser()
+    config.read(config_path)
+
+    section = "default" if profile == "default" else f"profile {profile}"
+    if not config.has_section(section):
+        return
+    config.remove_option(section, key)
+
+    with open(config_path, "w") as config_file:
+        config.write(config_file)
+
+
+def _credentials_unset(profile: str, key: str) -> None:
+    """Remove a key from a profile's section in the aws credentials file (~/.aws/credentials).
+
+    Mirrors `_credentials_set`, but removes the key instead of setting it. A
+    no-op if `~/.aws/credentials`, the profile's section, or the key don't
+    already exist.
+
+    Args:
+        profile: Profile name to remove the value from (used as the
+            section name directly, no `profile ` prefix - see
+            `_credentials_set`).
+        key: Credentials key to remove.
+
+    Example:
+        >>> _credentials_unset("default", "aws_session_token")
+        # Removes `aws_session_token` from `[default]` in ~/.aws/credentials.
+    """
+    credentials_path = os.path.expanduser("~/.aws/credentials")
+    config = configparser.RawConfigParser()
+    config.read(credentials_path)
+
+    if not config.has_section(profile):
+        return
+    config.remove_option(profile, key)
+
+    with open(credentials_path, "w") as credentials_file:
+        config.write(credentials_file)
+    os.chmod(credentials_path, 0o600)
+
+
 def _boto3_session(profile: str) -> boto3.Session:
     """Build a boto3 session for `profile`, caching assume-role results.
 

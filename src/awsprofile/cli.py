@@ -155,6 +155,30 @@ def status() -> None:
 
 
 @cli.command()
+@click.argument("profile", default="default")
+def clear(profile: str) -> None:
+    """Remove exported credentials from a profile.
+
+    Removes the `aws_access_key_id`, `aws_secret_access_key` and
+    `aws_session_token` fields from `profile`'s section in
+    `~/.aws/credentials`, and its `credentials_profile` field in
+    `~/.aws/config` (both written by `dev`/`prod`/`integration`/`bedrock`/
+    `profile`). It's fine to run this even if `profile` never held any
+    credentials.
+
+    Args:
+        profile: Export profile to clear. Defaults to `"default"`.
+
+    Example:
+        $ awsprofile clear
+        $ awsprofile clear bedrockonly
+    """
+    from awsprofile.export_credentials import _clear_credentials
+
+    _clear_credentials(profile)
+
+
+@cli.command()
 @click.argument("profile")
 @click.argument("alias")
 def set(alias: str, profile: str) -> None:

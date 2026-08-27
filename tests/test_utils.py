@@ -12,7 +12,9 @@ from awsprofile.utils import (
     _boto3_session,
     _cached_credential_fetcher,
     _config_set,
+    _config_unset,
     _credentials_set,
+    _credentials_unset,
     _get_cached_expiration,
 )
 
@@ -93,6 +95,106 @@ class TestCredentialsSet:
 
         config = _read(aws_home.credentials)
         assert config.get("default", "aws_session_token") == "new-token"
+
+
+class TestConfigUnset:
+    def test_removes_key_from_default_section(self, aws_home):
+        _config_set("default", "credentials_profile", "assume-ds-role-dev-readonly")
+
+        _config_unset("default", "credentials_profile")
+
+        config = _read(aws_home.config)
+        assert config.has_option("default", "credentials_profile") is False
+
+    def test_removes_key_from_non_default_profile_section(self, aws_home):
+        _config_set("bedrockonly", "credentials_profile", "assume-ds-role-dev-bedrockonly")
+
+        _config_unset("bedrockonly", "credentials_profile")
+
+        config = _read(aws_home.config)
+        assert config.has_option("profile bedrockonly", "credentials_profile") is False
+
+    def test_leaves_other_keys_and_sections_untouched(self, aws_home):
+        _config_set("dev", "alias", "d")
+        _config_set("dev", "credentials_profile", "assume-ds-role-dev-poweraccess")
+        _config_set("prod", "alias", "p")
+
+        _config_unset("dev", "credentials_profile")
+
+        config = _read(aws_home.config)
+        assert config.get("profile dev", "alias") == "d"
+        assert config.has_option("profile dev", "credentials_profile") is False
+        assert config.get("profile prod", "alias") == "p"
+
+    def test_no_op_when_file_does_not_exist(self, aws_home):
+        _config_unset("default", "credentials_profile")
+
+        assert not aws_home.config.exists()
+
+    def test_no_op_when_section_does_not_exist(self, aws_home):
+        _config_set("dev", "alias", "d")
+
+        _config_unset("prod", "credentials_profile")
+
+        config = _read(aws_home.config)
+        assert config.get("profile dev", "alias") == "d"
+
+    def test_no_op_when_key_does_not_exist(self, aws_home):
+        _config_set("default", "alias", "d")
+
+        _config_unset("default", "credentials_profile")
+
+        config = _read(aws_home.config)
+        assert config.get("default", "alias") == "d"
+
+
+class TestCredentialsUnset:
+    def test_removes_key_from_section(self, aws_home):
+        _credentials_set("default", "aws_session_token", "old-token")
+
+        _credentials_unset("default", "aws_session_token")
+
+        config = _read(aws_home.credentials)
+        assert config.has_option("default", "aws_session_token") is False
+
+    def test_leaves_other_keys_untouched(self, aws_home):
+        _credentials_set("default", "aws_access_key_id", "AKIA1")
+        _credentials_set("default", "aws_secret_access_key", "SECRET1")
+
+        _credentials_unset("default", "aws_secret_access_key")
+
+        config = _read(aws_home.credentials)
+        assert config.get("default", "aws_access_key_id") == "AKIA1"
+        assert config.has_option("default", "aws_secret_access_key") is False
+
+    def test_restricts_file_permissions_to_owner_read_write(self, aws_home):
+        _credentials_set("default", "aws_session_token", "old-token")
+
+        _credentials_unset("default", "aws_session_token")
+
+        mode = stat.S_IMODE(os.stat(aws_home.credentials).st_mode)
+        assert mode == 0o600
+
+    def test_no_op_when_file_does_not_exist(self, aws_home):
+        _credentials_unset("default", "aws_session_token")
+
+        assert not aws_home.credentials.exists()
+
+    def test_no_op_when_section_does_not_exist(self, aws_home):
+        _credentials_set("gds-users", "aws_access_key_id", "AKIA1")
+
+        _credentials_unset("default", "aws_session_token")
+
+        config = _read(aws_home.credentials)
+        assert config.get("gds-users", "aws_access_key_id") == "AKIA1"
+
+    def test_no_op_when_key_does_not_exist(self, aws_home):
+        _credentials_set("default", "aws_access_key_id", "AKIA1")
+
+        _credentials_unset("default", "aws_session_token")
+
+        config = _read(aws_home.credentials)
+        assert config.get("default", "aws_access_key_id") == "AKIA1"
 
 
 class _RaisingSTSClient:

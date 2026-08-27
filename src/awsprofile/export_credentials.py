@@ -14,7 +14,14 @@ import sys
 import botocore.exceptions
 import click
 
-from awsprofile.utils import _boto3_session, _config_set, _credentials_set, _get_cached_expiration
+from awsprofile.utils import (
+    _boto3_session,
+    _config_set,
+    _config_unset,
+    _credentials_set,
+    _credentials_unset,
+    _get_cached_expiration,
+)
 
 
 def _list_profiles() -> list[str]:
@@ -170,6 +177,32 @@ def _set_alias(alias: str, profile: str) -> None:
         sys.exit(1)
 
     _config_set(profile, "alias", alias)
+
+
+def _clear_credentials(profile: str = "default") -> None:
+    """Remove previously exported credentials from a profile.
+
+    Undoes what `_export_credentials` writes: removes `aws_access_key_id`,
+    `aws_secret_access_key` and `aws_session_token` from `profile`'s section
+    in `~/.aws/credentials`, and its `credentials_profile` field in
+    `~/.aws/config`. Fields/sections that don't currently exist are simply
+    left alone (this never fails just because there's nothing to clear).
+
+    Args:
+        profile: Export profile to clear. Defaults to `"default"`.
+
+    Example:
+        >>> _clear_credentials()
+        # Removes the access key/secret key/session token/credentials_profile
+        # previously written to [default].
+        >>> _clear_credentials("bedrockonly")
+    """
+    _credentials_unset(profile, "aws_access_key_id")
+    _credentials_unset(profile, "aws_secret_access_key")
+    _credentials_unset(profile, "aws_session_token")
+    _config_unset(profile, "credentials_profile")
+
+    click.echo(f"Cleared exported credentials from '{profile}'.", err=False)
 
 
 def _export_credentials(profile: str, export_profile: str = None) -> None:

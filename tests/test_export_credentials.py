@@ -244,7 +244,75 @@ class TestSetAlias:
         assert "does exist" in capsys.readouterr().err
 
 
-class TestExportCredentials:
+class TestClearCredentials:
+    def test_clears_default_profile_by_default(self, aws_home, capsys):
+        _write_config(aws_home.config, {"default": {"credentials_profile": "assume-ds-role-dev-readonly"}})
+        _write_config(
+            aws_home.credentials,
+            {
+                "default": {
+                    "aws_access_key_id": "AKIAFAKE",
+                    "aws_secret_access_key": "secretfake",
+                    "aws_session_token": "tokenfake",
+                }
+            },
+        )
+
+        ec._clear_credentials()
+
+        creds = _read(aws_home.credentials)
+        assert creds.has_option("default", "aws_access_key_id") is False
+        assert creds.has_option("default", "aws_secret_access_key") is False
+        assert creds.has_option("default", "aws_session_token") is False
+        config = _read(aws_home.config)
+        assert config.has_option("default", "credentials_profile") is False
+
+        assert "Cleared exported credentials from 'default'." in capsys.readouterr().out
+
+    def test_clears_custom_export_profile(self, aws_home):
+        _write_config(
+            aws_home.config, {"profile bedrockonly": {"credentials_profile": "assume-ds-role-dev-bedrockonly"}}
+        )
+        _write_config(aws_home.credentials, {"bedrockonly": {"aws_access_key_id": "AKIAFAKE"}})
+
+        ec._clear_credentials("bedrockonly")
+
+        creds = _read(aws_home.credentials)
+        assert creds.has_option("bedrockonly", "aws_access_key_id") is False
+        config = _read(aws_home.config)
+        assert config.has_option("profile bedrockonly", "credentials_profile") is False
+
+    def test_leaves_other_profiles_untouched(self, aws_home):
+        _write_config(
+            aws_home.config,
+            {
+                "default": {"credentials_profile": "assume-ds-role-dev-readonly"},
+                "profile bedrockonly": {"credentials_profile": "assume-ds-role-dev-bedrockonly", "alias": "keep-me"},
+            },
+        )
+        _write_config(
+            aws_home.credentials,
+            {
+                "default": {"aws_access_key_id": "AKIAFAKE"},
+                "bedrockonly": {"aws_access_key_id": "AKIAOTHER"},
+            },
+        )
+
+        ec._clear_credentials("default")
+
+        creds = _read(aws_home.credentials)
+        assert creds.get("bedrockonly", "aws_access_key_id") == "AKIAOTHER"
+        config = _read(aws_home.config)
+        assert config.get("profile bedrockonly", "credentials_profile") == "assume-ds-role-dev-bedrockonly"
+        assert config.get("profile bedrockonly", "alias") == "keep-me"
+
+    def test_no_op_when_nothing_was_ever_exported(self, aws_home, capsys):
+        ec._clear_credentials()
+
+        assert not aws_home.credentials.exists()
+        out = capsys.readouterr().out
+        assert "Cleared exported credentials from 'default'." in out
+
     def test_writes_credentials_and_credentials_profile_to_default(self, aws_home, monkeypatch, capsys):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
         monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
