@@ -1,6 +1,5 @@
 import configparser
 import datetime
-import json
 import os
 import sys
 
@@ -8,8 +7,6 @@ import boto3
 import botocore.session
 import click
 from botocore import credentials
-
-from awsprofile.utils import _execute_command
 
 
 def _list_profiles() -> list[str]:
@@ -174,47 +171,30 @@ def _export_credentials(profile: str, export_profile: str = None):
     profile = aliases.get(profile, profile)
 
     if profile in profiles:
-        completed_process = _execute_command(["aws", "--version"])
-        aws_cli_version = completed_process.stdout
-        aws_cli_version = int(aws_cli_version.split(" ", 1)[0].split("/", 1)[1].split(".", 1)[0])
+        cli_cache = os.path.join(os.path.expanduser("~"), ".aws/cli/cache")
 
-        if aws_cli_version < 2:
-            click.echo("AWS CLI old version discovered. the app functionality might be limited.", err=True)
+        # Construct botocore session with cache
+        session = botocore.session.Session(profile=profile)
+        session.get_component("credential_provider").get_provider("assume-role").cache = credentials.JSONFileCache(
+            cli_cache
+        )
 
-            cli_cache = os.path.join(os.path.expanduser("~"), ".aws/cli/cache")
+        session_boto = boto3.Session(botocore_session=session)
 
-            # Construct botocore session with cache
-            session = botocore.session.Session(profile=profile)
-            session.get_component("credential_provider").get_provider("assume-role").cache = credentials.JSONFileCache(
-                cli_cache
-            )
+        try:
+            aws_credentials = session_boto.get_credentials()
+            frozen_credentials = aws_credentials.get_frozen_credentials()
+        except botocore.exceptions.ClientError as e:
+            click.echo(click.style(e, fg="red"), err=True)
+            sys.exit(1)
+        except botocore.exceptions.ParamValidationError as e:
+            click.echo(click.style(e, fg="red"), err=True)
+            sys.exit(1)
 
-            session_boto = boto3.Session(botocore_session=session)
-
-            try:
-                frozen_credentials = session_boto.get_credentials().get_frozen_credentials()
-            except botocore.exceptions.ClientError as e:
-                click.echo(click.style(e, fg="red"), err=True)
-                sys.exit(1)
-            except botocore.exceptions.ParamValidationError as e:
-                click.echo(click.style(e, fg="red"), err=True)
-                sys.exit(1)
-
-            access_key_id = frozen_credentials.access_key
-            secret_access_key = frozen_credentials.secret_key
-            session_token = frozen_credentials.token
-            expiration = None
-
-        else:
-            completed_process = _execute_command(["aws", "configure", "export-credentials", "--profile", profile])
-
-            stdout = completed_process.stdout
-            stdout_json = json.loads(stdout)
-
-            access_key_id = stdout_json["AccessKeyId"]
-            secret_access_key = stdout_json["SecretAccessKey"]
-            session_token = stdout_json["SessionToken"]
-            expiration = stdout_json["Expiration"]
+        access_key_id = frozen_credentials.access_key
+        secret_access_key = frozen_credentials.secret_key
+        session_token = frozen_credentials.token
+        time_expiration = getattr(aws_credentials, "_expiry_time", None)
 
     else:
         click.echo(f"Profile or alias: '{profile}' does not exist", err=True)
@@ -232,9 +212,8 @@ def _export_credentials(profile: str, export_profile: str = None):
     _credentials_set(export_profile, "aws_secret_access_key", secret_access_key)
     _credentials_set(export_profile, "aws_session_token", session_token)
     _config_set(export_profile, "credentials_profile", profile)
-    if expiration is not None:
+    if time_expiration is not None:
         time_now = datetime.datetime.now(datetime.UTC)
-        time_expiration = datetime.datetime.strptime(expiration, "%Y-%m-%dT%H:%M:%S%z")
         time_diff = time_expiration - time_now
 
         if time_diff > datetime.timedelta():
