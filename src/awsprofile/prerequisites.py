@@ -10,9 +10,7 @@ import sys
 import click
 
 # Each entry is (display_name, check_command, install_hint, optional_url).
-PREREQUISITES: list[tuple[str, list[str], str, str | None]] = [
-    ("aws", ["aws", "--version"], "brew install awscli", None),
-]
+PREREQUISITES: list[tuple[str, list[str], str, str | None]] = []
 
 
 def _check_prerequisites(only: list[str] | None = None) -> None:

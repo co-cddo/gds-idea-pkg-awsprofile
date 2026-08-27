@@ -1,3 +1,10 @@
+"""Command-line entry point for `awsprofile`.
+
+Thin `click` wrappers around the functions in `export_credentials.py`,
+`create_credentials.py` and `prerequisites.py`. See the project README for
+end-to-end usage.
+"""
+
 import click
 
 
@@ -9,32 +16,52 @@ def cli(ctx):
 
 
 @cli.command()
-def dev():
-    """Use aws profile with dev alias temporary credentials as default profile credentials"""
+def dev() -> None:
+    """Use aws profile with dev alias temporary credentials as default profile credentials.
+
+    Example:
+        $ awsprofile dev
+    """
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="dev")
 
 
 @cli.command()
-def prod():
-    """Use aws profile with prod alias temporary credentials as default profile credentials"""
+def prod() -> None:
+    """Use aws profile with prod alias temporary credentials as default profile credentials.
+
+    Example:
+        $ awsprofile prod
+    """
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="prod")
 
 
 @cli.command()
-def integration():
-    """Use aws profile with integration alias temporary credentials as default profile credentials"""
+def integration() -> None:
+    """Use aws profile with integration alias temporary credentials as default profile credentials.
+
+    Example:
+        $ awsprofile integration
+    """
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="integration")
 
 
 @cli.command()
-def bedrock():
-    """Use aws profile with integration alias temporary credentials as bedrockonly profile credentials"""
+def bedrock() -> None:
+    """Use aws profile with bedrock alias temporary credentials as bedrockonly profile credentials.
+
+    Unlike `dev`/`prod`/`integration`, this writes into the `bedrockonly`
+    profile rather than `default`, so it never clobbers whatever role you
+    currently have active in `default`.
+
+    Example:
+        $ awsprofile bedrock
+    """
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile="bedrock", export_profile="bedrockonly")
@@ -43,12 +70,16 @@ def bedrock():
 @cli.command()
 @click.argument("profile", default="dev")
 @click.argument("export_profile", default="default")
-def profile(profile: str, export_profile: str):
+def profile(profile: str, export_profile: str) -> None:
     """Log in and set aws profile temporary credentials in default profile.
 
     Args:
         profile: Profile or alias name to set as export_profile.
         export_profile: Profile to export credentials to, defaults to default.
+
+    Example:
+        $ awsprofile profile assume-ds-role-dev-readonly
+        $ awsprofile profile prod bedrockonly
     """
     from awsprofile.export_credentials import _export_credentials
 
@@ -56,8 +87,16 @@ def profile(profile: str, export_profile: str):
 
 
 @cli.command()
-def list():
-    """List aws profiles and aliases"""
+def list() -> None:
+    """List aws profiles and aliases.
+
+    Prints every `assume-ds-role-*` profile with its alias (if any), and
+    every export profile that currently holds credentials, alongside the
+    source profile they were signed in from.
+
+    Example:
+        $ awsprofile list
+    """
     from awsprofile.export_credentials import _dict_aliases, _dict_credentials_profiles
 
     aliases, profiles = _dict_aliases()
@@ -85,7 +124,7 @@ def list():
 @cli.command()
 @click.argument("profile")
 @click.argument("alias")
-def set(alias: str, profile: str):
+def set(alias: str, profile: str) -> None:
     """Set alias to aws profile.
 
     Create or update alias field for aws profile.
@@ -93,6 +132,9 @@ def set(alias: str, profile: str):
     Args:
         alias: Alias name to set.
         profile: Profile name to set alias for.
+
+    Example:
+        $ awsprofile set assume-ds-role-dev-readonly dev
     """
     from awsprofile.export_credentials import _set_alias
 
@@ -103,11 +145,31 @@ def set(alias: str, profile: str):
 @click.option("--email", help="Email address used for AWS access.")
 @click.option("--access-key", help="AWS access key.")
 @click.option("--secret-key", help="AWS secret key.")
-@click.option("--mfa", help="AWS mfa name. If email is provided, only the suffix can be provided.")
-def init(email: str, access_key: str, secret_key: str, mfa: str):
-    """Create or update aws credentials files and fill them with profiles used by GDS IDEA team."""
+@click.option("--mfa", help="Full AWS mfa device name.")
+@click.option("--mfa-suffix", help="Suffix appended to --email to form the full AWS mfa device name. Requires --email.")
+def init(email: str, access_key: str, secret_key: str, mfa: str, mfa_suffix: str) -> None:
+    """Create or update aws credentials files and fill them with profiles used by GDS IDEA team.
+
+    Checks required external tools are installed first (via
+    `_check_prerequisites`), then delegates to `_set_default_configuration`.
+    All options are optional and independently gate the config fields that
+    depend on them - see `_set_default_configuration` for details.
+
+    Args:
+        email: Email address used for AWS access; enables writing role_arn fields.
+        access_key: AWS access key; enables writing gds-users' aws_access_key_id.
+        secret_key: AWS secret key; enables writing gds-users' aws_secret_access_key.
+        mfa: Full AWS mfa device name.
+        mfa_suffix: Suffix appended to email to form the full mfa device name.
+            Requires --email. Takes precedence over --mfa if both are given.
+
+    Example:
+        $ awsprofile init --email jane.doe@example.com --mfa-suffix "-work-phone"
+        $ awsprofile init --email jane.doe@example.com --mfa jane.doe@example.com-work-phone \\
+            --access-key AKIA... --secret-key ...
+    """
     from awsprofile.create_credentials import _set_default_configuration
     from awsprofile.prerequisites import _check_prerequisites
 
     _check_prerequisites()
-    _set_default_configuration(email, access_key, secret_key, mfa)
+    _set_default_configuration(email, access_key, secret_key, mfa, mfa_suffix)
