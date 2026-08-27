@@ -91,6 +91,13 @@ A few terms used throughout this doc and the CLI's own help text:
    - Or explicitly by profile/alias name (optionally targeting a
      specific export profile instead of `default`): \
      `awsprofile profile {profile or alias name} {(optional) export profile name}`
+   - Or, to keep a session usable across multiple terminals at once
+     (e.g. `dev` in one tab, `prod` in another) without disturbing
+     `default`: \
+     `eval "$(awsprofile export {profile or alias name} {(optional) target name, defaults to the alias})"`
+     - One-time setup lets you drop the `eval "$(...)"` and just run
+       `awsprofile export ...` directly: add
+       `eval "$(awsprofile shell-init)"` to your `~/.zshrc`/`~/.bashrc`.
 4. (Optional) Give a profile your own alias: \
    `awsprofile set {profile name} {alias name}`
 
@@ -105,7 +112,9 @@ A few terms used throughout this doc and the CLI's own help text:
 | `awsprofile profile {profile\|alias} {export_profile=default}` | Signs in to the given profile or alias and writes temporary credentials into `export_profile` (`default` unless specified). |
 | `awsprofile dev` / `prod` / `integration` | Shortcuts for `awsprofile profile <alias>`, writing into `default`. |
 | `awsprofile bedrock` | Shortcut for signing in to the `bedrock` alias, but writes into the **`bedrockonly`** profile — **not `default`**. This is the one command here that doesn't affect `default` at all. |
-| `--refresh` / `-r` | Available on `profile`/`dev`/`prod`/`integration`/`bedrock`. Forces a new sign-in (dropping the cached assume-role session first) even if the current one hasn't expired yet — useful if a role's permissions changed and you want a fresh session without waiting for expiry. |
+| `awsprofile export {profile\|alias} {target_name=alias}` | Signs in (like `awsprofile profile`) and writes credentials into a profile named `target_name` (defaults to `alias`, never `default`), then prints an `export AWS_PROFILE=...`/`unset AWS_...` snippet to stdout — run as `eval "$(awsprofile export prod)"`. Because every terminal reads the same underlying file, this lets you keep multiple sessions (e.g. `dev`/`prod`) usable at once across different terminals, without touching `default`. |
+| `awsprofile shell-init` | One-time setup: prints a shell function to add to your `~/.zshrc`/`~/.bashrc` (via `eval "$(awsprofile shell-init)"`) so plain `awsprofile export ...` works without wrapping it in `eval "$(...)"` yourself every time. Works identically for bash and zsh. |
+| `--refresh` / `-r` | Available on `profile`/`dev`/`prod`/`integration`/`bedrock`/`export`. Forces a new sign-in (dropping the cached assume-role session first) even if the current one hasn't expired yet — useful if a role's permissions changed and you want a fresh session without waiting for expiry. |
 | `awsprofile clear {export_profile=default}` | Removes the access key/secret key/session token and `credentials_profile` previously written to `export_profile` by any of the sign-in commands above. |
 
 ## Good to know

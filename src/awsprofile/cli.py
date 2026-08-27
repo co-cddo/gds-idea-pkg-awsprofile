@@ -5,6 +5,8 @@ Thin `click` wrappers around the functions in `export_credentials.py`,
 end-to-end usage.
 """
 
+import sys
+
 import click
 
 _refresh_option = click.option(
@@ -14,6 +16,20 @@ _refresh_option = click.option(
     is_flag=True,
     help="Sign in again even if the current session hasn't expired yet.",
 )
+
+# Shell function wrapper installed via `shell-init` so that plain
+# `awsprofile export ...` (no manual `eval "$(...)"` typing) works directly.
+# `[[ ]]`, `local` and this function-definition syntax all work identically
+# in both bash and zsh, so the same snippet is printed for either shell.
+_SHELL_INIT_SNIPPET = """awsprofile() {
+  if [[ "$1" == "export" ]]; then
+    local out
+    out="$(command awsprofile "$@")" || return $?
+    eval "$out"
+  else
+    command awsprofile "$@"
+  fi
+}"""
 
 
 @click.group()
@@ -120,6 +136,100 @@ def profile(profile: str, export_profile: str, force_refresh: bool) -> None:
     from awsprofile.export_credentials import _export_credentials
 
     _export_credentials(profile=profile, export_profile=export_profile, force_refresh=force_refresh)
+
+
+@cli.command()
+@click.argument("alias")
+@click.argument("target_name", required=False)
+@_refresh_option
+def export(alias: str, target_name: str, force_refresh: bool) -> None:
+    """Sign in and print a shell snippet to make the session available in every terminal.
+
+    Unlike `dev`/`prod`/`integration`/`bedrock`/`profile` (which write
+    credentials into a profile you then have to reference yourself via
+    `--profile`/`AWS_PROFILE`), this writes the credentials into a profile
+    named `target_name` (defaults to `alias`) and prints:
+
+        export AWS_PROFILE=<target_name>
+        unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+
+    to stdout, meant to be `eval`'d. The `unset` matters: stale key env vars
+    take precedence over `AWS_PROFILE` in the credential resolution chain,
+    so without it a previous `export`'s keys could keep shadowing this one.
+
+    Because every terminal that `eval`'d this for the same `target_name`
+    reads the same file in `~/.aws/credentials`, re-running this (or
+    `awsprofile profile <alias> <target_name>`, or `eval`'ing this again -
+    it's idempotent) refreshes the session for all of them at once, with
+    nothing further to `eval`.
+
+    Refuses to target `"default"`, since the whole point of this command is
+    to keep sessions separate from - and never disturb - whatever's
+    currently active in `default`; use `dev`/`prod`/`profile` for that.
+
+    All status output (from the underlying sign-in) goes to stderr, since
+    stdout is reserved for the snippet meant to be `eval`'d.
+
+    Args:
+        alias: Profile or alias name to sign in with.
+        target_name: Profile name to write credentials to, and to point
+            `AWS_PROFILE` at. Defaults to `alias`.
+        force_refresh: If set, sign in again even if the current session
+            hasn't expired yet.
+
+    Example:
+        $ eval "$(awsprofile export prod)"
+        $ eval "$(awsprofile export dev my-dev-session)"
+        $ eval "$(awsprofile export prod --refresh)"
+    """
+    from awsprofile.export_credentials import _export_credentials
+
+    target_name = alias if target_name is None else target_name
+    if target_name == "default":
+        click.echo(
+            "Refusing to export to 'default' - use 'awsprofile profile'/'dev'/'prod' etc. instead.",
+            err=True,
+        )
+        sys.exit(1)
+
+    _export_credentials(
+        profile=alias,
+        export_profile=target_name,
+        force_refresh=force_refresh,
+        status_to_stderr=True,
+    )
+
+    click.echo(f"export AWS_PROFILE={target_name}")
+    click.echo("unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN")
+
+
+@cli.command(name="shell-init")
+def shell_init() -> None:
+    """Print a shell function that makes `awsprofile export` work without manual `eval`.
+
+    `awsprofile export` normally requires wrapping every call in
+    `eval "$(awsprofile export ...)"` so the `export AWS_PROFILE=...`/`unset
+    AWS_...` snippet it prints actually takes effect in your current shell.
+    This command prints a small shell function you install once, after
+    which plain `awsprofile export ...` (no `eval` needed) works directly -
+    the function transparently `eval`'s the output only for the `export`
+    subcommand, and passes every other subcommand straight through
+    unchanged.
+
+    The generated function works the same in both bash and zsh, so there's
+    no need to specify which shell you're using.
+
+    Install once by adding a line like this to your `~/.zshrc` or
+    `~/.bashrc`, then restart your shell (or `source` the rc file):
+
+        eval "$(awsprofile shell-init)"
+
+    Example:
+        $ eval "$(awsprofile shell-init)"
+        $ awsprofile export prod
+        export AWS_PROFILE=prod
+    """
+    click.echo(_SHELL_INIT_SNIPPET)
 
 
 @cli.command()

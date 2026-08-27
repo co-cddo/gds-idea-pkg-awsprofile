@@ -206,7 +206,12 @@ def _clear_credentials(profile: str = "default") -> None:
     click.echo(f"Cleared exported credentials from '{profile}'.", err=False)
 
 
-def _export_credentials(profile: str, export_profile: str = None, force_refresh: bool = False) -> None:
+def _export_credentials(
+    profile: str,
+    export_profile: str = None,
+    force_refresh: bool = False,
+    status_to_stderr: bool = False,
+) -> None:
     """Sign in to a profile (assuming a role via MFA if required) and write
     the resulting temporary credentials to another profile on disk.
 
@@ -236,6 +241,12 @@ def _export_credentials(profile: str, export_profile: str = None, force_refresh:
             existing `~/.aws/cli/cache` entry first (this may prompt for an
             MFA code again). Defaults to `False`, matching the AWS CLI's
             own reuse-until-expired behaviour.
+        status_to_stderr: If `True`, the "Session valid"/"...minutes left"
+            and "Note: credentials written to..." informational messages
+            are printed to stderr instead of stdout. Used by `awsprofile
+            export`, whose stdout is reserved for a shell snippet meant to
+            be `eval`'d, so any other output there would corrupt it.
+            Defaults to `False`.
 
     Example:
         >>> _export_credentials(profile="dev")
@@ -245,6 +256,9 @@ def _export_credentials(profile: str, export_profile: str = None, force_refresh:
         # Signs in to the "bedrock" alias without touching [default].
         >>> _export_credentials(profile="dev", force_refresh=True)
         # Signs in again even if the current "dev" session hasn't expired.
+        >>> _export_credentials(profile="prod", export_profile="prod", status_to_stderr=True)
+        # Used internally by `awsprofile export prod` - status messages go
+        # to stderr so stdout stays clean for `eval`.
     """
     export_profile = "default" if export_profile is None else export_profile
     if export_profile.startswith("assume-ds-role") or export_profile == "gds-users":
@@ -296,11 +310,14 @@ def _export_credentials(profile: str, export_profile: str = None, force_refresh:
 
         if time_diff > datetime.timedelta():
             echo_time_diff = int(time_diff.total_seconds() // 60)
-            click.echo(f"Session valid, {echo_time_diff} minutes left", err=False)
+            click.echo(f"Session valid, {echo_time_diff} minutes left", err=status_to_stderr)
     else:
-        click.echo("Session valid", err=False)
+        click.echo("Session valid", err=status_to_stderr)
 
     if export_profile == "default":
-        click.echo(f"Note: credentials written to '{export_profile}'.", err=False)
+        click.echo(f"Note: credentials written to '{export_profile}'.", err=status_to_stderr)
     else:
-        click.echo(f"Note: credentials written to '{export_profile}' - 'default' was not changed.", err=False)
+        click.echo(
+            f"Note: credentials written to '{export_profile}' - 'default' was not changed.",
+            err=status_to_stderr,
+        )

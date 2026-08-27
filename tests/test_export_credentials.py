@@ -364,6 +364,17 @@ class TestClearCredentials:
 
         assert "minutes left" in capsys.readouterr().out
 
+    def test_status_to_stderr_sends_informational_messages_to_stderr(self, aws_home, monkeypatch, capsys):
+        _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+
+        ec._export_credentials("assume-ds-role-dev-readonly", status_to_stderr=True)
+
+        out, err = capsys.readouterr()
+        assert out == ""
+        assert "Session valid" in err
+        assert "Note: credentials written to 'default'." in err
+
     def test_rejects_assume_role_export_profile(self, aws_home):
         with pytest.raises(SystemExit) as exc_info:
             ec._export_credentials("dev", export_profile="assume-ds-role-dev-readonly")

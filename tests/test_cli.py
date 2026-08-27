@@ -123,6 +123,92 @@ class TestProfileCommand:
         assert calls == [{"profile": "prod", "export_profile": "bedrockonly", "force_refresh": True}]
 
 
+class TestExportCommand:
+    def test_defaults_target_name_to_alias(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "prod")
+
+        assert result.exit_code == 0
+        assert calls == [
+            {
+                "profile": "prod",
+                "export_profile": "prod",
+                "force_refresh": False,
+                "status_to_stderr": True,
+            }
+        ]
+
+    def test_accepts_explicit_target_name(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "dev", "my-dev-session")
+
+        assert result.exit_code == 0
+        assert calls == [
+            {
+                "profile": "dev",
+                "export_profile": "my-dev-session",
+                "force_refresh": False,
+                "status_to_stderr": True,
+            }
+        ]
+
+    def test_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "prod", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [
+            {
+                "profile": "prod",
+                "export_profile": "prod",
+                "force_refresh": True,
+                "status_to_stderr": True,
+            }
+        ]
+
+    def test_prints_export_and_unset_snippet_to_stdout(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: None)
+
+        result = invoke("export", "prod")
+
+        assert result.exit_code == 0
+        assert result.stdout == (
+            "export AWS_PROFILE=prod\nunset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN\n"
+        )
+
+    def test_refuses_to_target_default(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("export", "dev", "default")
+
+        assert result.exit_code == 1
+        assert calls == []
+        assert "Refusing to export to 'default'" in result.output
+
+
+class TestShellInitCommand:
+    def test_prints_wrapper_function(self):
+        result = invoke("shell-init")
+
+        assert result.exit_code == 0
+        assert "awsprofile() {" in result.output
+        assert 'if [[ "$1" == "export" ]]; then' in result.output
+        assert 'eval "$out"' in result.output
+
+    def test_rejects_extra_arguments(self):
+        result = invoke("shell-init", "zsh")
+
+        assert result.exit_code != 0
+        assert "no such option" in result.output.lower() or "unexpected" in result.output.lower()
+
+
 class TestListCommand:
     def test_prints_assume_role_profiles_with_aliases_and_credential_profiles(self, monkeypatch):
         monkeypatch.setattr(
@@ -288,6 +374,19 @@ class TestHelpAndVersion:
         assert "awsprofile" in result.output
 
     def test_every_command_help_succeeds(self):
-        for command in ("dev", "prod", "integration", "bedrock", "profile", "list", "status", "clear", "set", "init"):
+        for command in (
+            "dev",
+            "prod",
+            "integration",
+            "bedrock",
+            "profile",
+            "export",
+            "shell-init",
+            "list",
+            "status",
+            "clear",
+            "set",
+            "init",
+        ):
             result = invoke(command, "--help")
             assert result.exit_code == 0, f"{command} --help failed: {result.output}"
