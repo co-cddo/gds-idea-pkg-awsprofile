@@ -28,7 +28,16 @@ class TestSignInShortcuts:
         result = invoke("dev")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "dev"}]
+        assert calls == [{"profile": "dev", "force_refresh": False}]
+
+    def test_dev_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("dev", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "dev", "force_refresh": True}]
 
     def test_prod_signs_in_with_prod_profile(self, monkeypatch):
         calls = []
@@ -37,7 +46,16 @@ class TestSignInShortcuts:
         result = invoke("prod")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "prod"}]
+        assert calls == [{"profile": "prod", "force_refresh": False}]
+
+    def test_prod_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("prod", "-r")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "prod", "force_refresh": True}]
 
     def test_integration_signs_in_with_integration_profile(self, monkeypatch):
         calls = []
@@ -46,7 +64,16 @@ class TestSignInShortcuts:
         result = invoke("integration")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "integration"}]
+        assert calls == [{"profile": "integration", "force_refresh": False}]
+
+    def test_integration_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("integration", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "integration", "force_refresh": True}]
 
     def test_bedrock_signs_in_to_bedrockonly_export_profile(self, monkeypatch):
         calls = []
@@ -55,7 +82,16 @@ class TestSignInShortcuts:
         result = invoke("bedrock")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "bedrock", "export_profile": "bedrockonly"}]
+        assert calls == [{"profile": "bedrock", "export_profile": "bedrockonly", "force_refresh": False}]
+
+    def test_bedrock_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("bedrock", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "bedrock", "export_profile": "bedrockonly", "force_refresh": True}]
 
 
 class TestProfileCommand:
@@ -66,7 +102,7 @@ class TestProfileCommand:
         result = invoke("profile")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "dev", "export_profile": "default"}]
+        assert calls == [{"profile": "dev", "export_profile": "default", "force_refresh": False}]
 
     def test_accepts_explicit_profile_and_export_profile(self, monkeypatch):
         calls = []
@@ -75,7 +111,16 @@ class TestProfileCommand:
         result = invoke("profile", "prod", "bedrockonly")
 
         assert result.exit_code == 0
-        assert calls == [{"profile": "prod", "export_profile": "bedrockonly"}]
+        assert calls == [{"profile": "prod", "export_profile": "bedrockonly", "force_refresh": False}]
+
+    def test_passes_through_refresh_flag(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("awsprofile.export_credentials._export_credentials", lambda **kw: calls.append(kw))
+
+        result = invoke("profile", "prod", "bedrockonly", "--refresh")
+
+        assert result.exit_code == 0
+        assert calls == [{"profile": "prod", "export_profile": "bedrockonly", "force_refresh": True}]
 
 
 class TestListCommand:

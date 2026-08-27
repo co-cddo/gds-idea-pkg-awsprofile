@@ -7,6 +7,14 @@ end-to-end usage.
 
 import click
 
+_refresh_option = click.option(
+    "--refresh",
+    "-r",
+    "force_refresh",
+    is_flag=True,
+    help="Sign in again even if the current session hasn't expired yet.",
+)
+
 
 @click.group()
 @click.pass_context
@@ -16,74 +24,102 @@ def cli(ctx):
 
 
 @cli.command()
-def dev() -> None:
+@_refresh_option
+def dev(force_refresh: bool) -> None:
     """Use aws profile with dev alias temporary credentials as default profile credentials.
+
+    Args:
+        force_refresh: If set, sign in again even if the current session
+            hasn't expired yet.
 
     Example:
         $ awsprofile dev
+        $ awsprofile dev --refresh
     """
     from awsprofile.export_credentials import _export_credentials
 
-    _export_credentials(profile="dev")
+    _export_credentials(profile="dev", force_refresh=force_refresh)
 
 
 @cli.command()
-def prod() -> None:
+@_refresh_option
+def prod(force_refresh: bool) -> None:
     """Use aws profile with prod alias temporary credentials as default profile credentials.
+
+    Args:
+        force_refresh: If set, sign in again even if the current session
+            hasn't expired yet.
 
     Example:
         $ awsprofile prod
+        $ awsprofile prod --refresh
     """
     from awsprofile.export_credentials import _export_credentials
 
-    _export_credentials(profile="prod")
+    _export_credentials(profile="prod", force_refresh=force_refresh)
 
 
 @cli.command()
-def integration() -> None:
+@_refresh_option
+def integration(force_refresh: bool) -> None:
     """Use aws profile with integration alias temporary credentials as default profile credentials.
+
+    Args:
+        force_refresh: If set, sign in again even if the current session
+            hasn't expired yet.
 
     Example:
         $ awsprofile integration
+        $ awsprofile integration --refresh
     """
     from awsprofile.export_credentials import _export_credentials
 
-    _export_credentials(profile="integration")
+    _export_credentials(profile="integration", force_refresh=force_refresh)
 
 
 @cli.command()
-def bedrock() -> None:
+@_refresh_option
+def bedrock(force_refresh: bool) -> None:
     """Use aws profile with bedrock alias temporary credentials as bedrockonly profile credentials.
 
     Unlike `dev`/`prod`/`integration`, this writes into the `bedrockonly`
     profile rather than `default`, so it never clobbers whatever role you
     currently have active in `default`.
 
+    Args:
+        force_refresh: If set, sign in again even if the current session
+            hasn't expired yet.
+
     Example:
         $ awsprofile bedrock
+        $ awsprofile bedrock --refresh
     """
     from awsprofile.export_credentials import _export_credentials
 
-    _export_credentials(profile="bedrock", export_profile="bedrockonly")
+    _export_credentials(profile="bedrock", export_profile="bedrockonly", force_refresh=force_refresh)
 
 
 @cli.command()
 @click.argument("profile", default="dev")
 @click.argument("export_profile", default="default")
-def profile(profile: str, export_profile: str) -> None:
+@_refresh_option
+def profile(profile: str, export_profile: str, force_refresh: bool) -> None:
     """Log in and set aws profile temporary credentials in default profile.
 
     Args:
         profile: Profile or alias name to set as export_profile.
         export_profile: Profile to export credentials to, defaults to default.
+        force_refresh: If set, sign in again even if the current session
+            hasn't expired yet.
 
     Example:
         $ awsprofile profile assume-ds-role-dev-readonly
         $ awsprofile profile prod bedrockonly
+        $ awsprofile profile dev default --refresh
     """
     from awsprofile.export_credentials import _export_credentials
 
-    _export_credentials(profile=profile, export_profile=export_profile)
+    _export_credentials(profile=profile, export_profile=export_profile, force_refresh=force_refresh)
 
 
 @cli.command()

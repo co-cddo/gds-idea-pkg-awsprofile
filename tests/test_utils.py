@@ -16,6 +16,7 @@ from awsprofile.utils import (
     _credentials_set,
     _credentials_unset,
     _get_cached_expiration,
+    _invalidate_cached_credentials,
 )
 
 
@@ -320,3 +321,34 @@ class TestGetCachedExpiration:
         creds = botocore.credentials.Credentials("AKIA", "secret", None)
 
         assert _get_cached_expiration(creds) is None
+
+
+class TestInvalidateCachedCredentials:
+    def test_removes_existing_cache_entry(self, tmp_path):
+        fetcher = _make_fetcher(tmp_path)
+        creds = botocore.credentials.DeferredRefreshableCredentials(
+            method="assume-role", refresh_using=fetcher.fetch_credentials
+        )
+        expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
+        _write_cache_entry(tmp_path, fetcher, expiry)
+        assert fetcher._cache_key in fetcher._cache
+
+        _invalidate_cached_credentials(creds)
+
+        assert fetcher._cache_key not in fetcher._cache
+        assert _get_cached_expiration(creds) is None
+
+    def test_no_op_when_no_cache_entry_exists(self, tmp_path):
+        fetcher = _make_fetcher(tmp_path)
+        creds = botocore.credentials.DeferredRefreshableCredentials(
+            method="assume-role", refresh_using=fetcher.fetch_credentials
+        )
+
+        _invalidate_cached_credentials(creds)  # must not raise
+
+        assert fetcher._cache_key not in fetcher._cache
+
+    def test_no_op_for_static_credentials(self):
+        creds = botocore.credentials.Credentials("AKIA", "secret", None)
+
+        _invalidate_cached_credentials(creds)  # must not raise

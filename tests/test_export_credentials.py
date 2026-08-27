@@ -405,3 +405,24 @@ class TestClearCredentials:
             ec._export_credentials("assume-ds-role-dev-readonly")
 
         assert exc_info.value.code == 1
+
+    def test_does_not_invalidate_cache_by_default(self, aws_home, monkeypatch):
+        _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+        calls = []
+        monkeypatch.setattr(ec, "_invalidate_cached_credentials", lambda creds: calls.append(creds))
+
+        ec._export_credentials("assume-ds-role-dev-readonly")
+
+        assert calls == []
+
+    def test_force_refresh_invalidates_cache_before_freezing(self, aws_home, monkeypatch):
+        _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})
+        fake_credentials = _FakeCredentials()
+        monkeypatch.setattr(utils.boto3, "Session", _fake_boto3_session_factory(fake_credentials))
+        calls = []
+        monkeypatch.setattr(ec, "_invalidate_cached_credentials", lambda creds: calls.append(creds))
+
+        ec._export_credentials("assume-ds-role-dev-readonly", force_refresh=True)
+
+        assert calls == [fake_credentials]

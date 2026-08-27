@@ -244,6 +244,37 @@ def _get_cached_expiration(aws_credentials) -> datetime.datetime | None:
     return dateutil.parser.parse(expiration)
 
 
+def _invalidate_cached_credentials(aws_credentials) -> None:
+    """Drop a deferred assume-role credential's on-disk cache entry, if any.
+
+    Deletes the fetcher's `~/.aws/cli/cache` entry through its
+    `_cache`/`_cache_key` attributes (local file delete only, no AWS
+    calls). Used to force a fresh sign-in even when the cached credentials
+    are still valid: with the cache entry gone,
+    `CachedCredentialFetcher._get_cached_credentials()` can no longer find
+    a (valid or expired) cached entry to reuse, so the next
+    `get_frozen_credentials()`/`.access_key` access on `aws_credentials`
+    falls through to a live `AssumeRole` call (prompting for MFA again if
+    the profile requires it).
+
+    A no-op if `aws_credentials` isn't backed by a `CachedCredentialFetcher`
+    (e.g. static, long-lived credentials) or if there's no cache entry to
+    remove in the first place.
+
+    Args:
+        aws_credentials: A `botocore.credentials.Credentials` (or subclass)
+            instance, as returned by `Session.get_credentials()`.
+    """
+    fetcher = _cached_credential_fetcher(aws_credentials)
+    if fetcher is None:
+        return
+
+    try:
+        del fetcher._cache[fetcher._cache_key]
+    except KeyError:
+        pass
+
+
 def _format_expiration(expiration: datetime.datetime | None) -> str:
     """Turn a credentials expiration time into a human-readable status.
 

@@ -105,6 +105,7 @@ A few terms used throughout this doc and the CLI's own help text:
 | `awsprofile profile {profile\|alias} {export_profile=default}` | Signs in to the given profile or alias and writes temporary credentials into `export_profile` (`default` unless specified). |
 | `awsprofile dev` / `prod` / `integration` | Shortcuts for `awsprofile profile <alias>`, writing into `default`. |
 | `awsprofile bedrock` | Shortcut for signing in to the `bedrock` alias, but writes into the **`bedrockonly`** profile — **not `default`**. This is the one command here that doesn't affect `default` at all. |
+| `--refresh` / `-r` | Available on `profile`/`dev`/`prod`/`integration`/`bedrock`. Forces a new sign-in (dropping the cached assume-role session first) even if the current one hasn't expired yet — useful if a role's permissions changed and you want a fresh session without waiting for expiry. |
 | `awsprofile clear {export_profile=default}` | Removes the access key/secret key/session token and `credentials_profile` previously written to `export_profile` by any of the sign-in commands above. |
 
 ## Good to know

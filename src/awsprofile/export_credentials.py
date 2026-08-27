@@ -21,6 +21,7 @@ from awsprofile.utils import (
     _credentials_set,
     _credentials_unset,
     _get_cached_expiration,
+    _invalidate_cached_credentials,
 )
 
 
@@ -205,7 +206,7 @@ def _clear_credentials(profile: str = "default") -> None:
     click.echo(f"Cleared exported credentials from '{profile}'.", err=False)
 
 
-def _export_credentials(profile: str, export_profile: str = None) -> None:
+def _export_credentials(profile: str, export_profile: str = None, force_refresh: bool = False) -> None:
     """Sign in to a profile (assuming a role via MFA if required) and write
     the resulting temporary credentials to another profile on disk.
 
@@ -230,6 +231,11 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
             Defaults to `"default"`. Must not be an `assume-ds-role-*` or
             `gds-users` profile, since those are only ever used as sign-in
             sources, never as credential export targets.
+        force_refresh: If `True`, sign in again even if `profile` already
+            has a still-valid cached assume-role session, dropping the
+            existing `~/.aws/cli/cache` entry first (this may prompt for an
+            MFA code again). Defaults to `False`, matching the AWS CLI's
+            own reuse-until-expired behaviour.
 
     Example:
         >>> _export_credentials(profile="dev")
@@ -237,6 +243,8 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
         # under [default].
         >>> _export_credentials(profile="bedrock", export_profile="bedrockonly")
         # Signs in to the "bedrock" alias without touching [default].
+        >>> _export_credentials(profile="dev", force_refresh=True)
+        # Signs in again even if the current "dev" session hasn't expired.
     """
     export_profile = "default" if export_profile is None else export_profile
     if export_profile.startswith("assume-ds-role") or export_profile == "gds-users":
@@ -251,6 +259,8 @@ def _export_credentials(profile: str, export_profile: str = None) -> None:
 
         try:
             aws_credentials = session_boto.get_credentials()
+            if force_refresh:
+                _invalidate_cached_credentials(aws_credentials)
             frozen_credentials = aws_credentials.get_frozen_credentials()
         except botocore.exceptions.ClientError as e:
             click.echo(click.style(e, fg="red"), err=True)
