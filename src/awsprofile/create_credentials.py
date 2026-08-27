@@ -1,3 +1,9 @@
+"""Initial `~/.aws/config`/`~/.aws/credentials` scaffolding for the GDS IDEA
+profile set.
+
+Used by the `awsprofile init` CLI command.
+"""
+
 from awsprofile.utils import _config_set, _credentials_set
 
 
@@ -7,8 +13,17 @@ def _set_default_configuration(
     secret_key: str = None,
     mfa: str = None,
     mfa_suffix: str = None,
-):
+) -> None:
     """Create or update .aws/config file with profiles used by the GDS IDEA team.
+
+    Writes the full set of GDS IDEA `assume-ds-role-*` profiles (and their
+    aliases) to `~/.aws/config` unconditionally. `email`, `access_key`,
+    `secret_key`, `mfa`/`mfa_suffix` are all optional and independently
+    gate the profile fields that depend on them (`role_arn`,
+    `aws_access_key_id`/`aws_secret_access_key` on `gds-users`, and
+    `mfa_serial`, respectively) - any argument left as `None` simply skips
+    setting the fields that need it, leaving existing values (if any)
+    untouched.
 
     Args:
         email: If provided, creates or updates profiles role_arn field.
@@ -17,6 +32,21 @@ def _set_default_configuration(
         mfa: Full AWS MFA device name to set as the mfa_serial field.
         mfa_suffix: Suffix appended to email to form the full MFA device name. Requires
         email to also be provided. Takes precedence over mfa if both are given.
+
+    Raises:
+        ValueError: If `mfa_suffix` is given without `email`.
+
+    Example:
+        >>> _set_default_configuration(
+        ...     email="jane.doe@example.com",
+        ...     access_key="AKIA...",
+        ...     secret_key="...",
+        ...     mfa_suffix="-work-phone",
+        ... )
+        # Writes the full GDS IDEA profile set to ~/.aws/config, including
+        # role_arn (using jane.doe as the role name prefix) and mfa_serial
+        # (using "jane.doe@example.com-work-phone" as the MFA device name),
+        # and access/secret keys for gds-users in ~/.aws/credentials.
     """
     org_account = "622626885786"
 

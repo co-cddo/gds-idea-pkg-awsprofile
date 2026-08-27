@@ -79,6 +79,9 @@ A few terms used throughout this doc and the CLI's own help text:
      `awsprofile init --email {your-aws-account-email} --mfa {your-aws-account-mfa}`
    - Otherwise: \
      `awsprofile init --email {your-aws-account-email} --mfa {your-aws-account-mfa} --access-key {access key from credentials file} --secret-key {secret key from credentials file}`
+   - If your MFA device name is your email plus a suffix, you can pass
+     just the suffix instead of the full device name: \
+     `awsprofile init --email {your-aws-account-email} --mfa-suffix {suffix after your email in the mfa device name}`
 2. Check what's available:
    - List profiles and aliases, and any existing export mappings: \
      `awsprofile list`
@@ -95,7 +98,7 @@ A few terms used throughout this doc and the CLI's own help text:
 
 | Command | What it does |
 | --- | --- |
-| `awsprofile init` | Creates/updates `~/.aws/config` and `~/.aws/credentials` with the GDS IDEA profile set. Accepts `--email`, and `--access-key`/`--secret-key` if `gds-users` isn't already configured. |
+| `awsprofile init` | Creates/updates `~/.aws/config` and `~/.aws/credentials` with the GDS IDEA profile set. Accepts `--email`, `--mfa`/`--mfa-suffix`, and `--access-key`/`--secret-key` if `gds-users` isn't already configured. |
 | `awsprofile list` | Lists available `assume-ds-role-*` profiles with their aliases, and shows which export profiles currently hold credentials from which source profile. |
 | `awsprofile set {profile} {alias}` | Assigns a nickname (`alias`) to an existing profile. |
 | `awsprofile profile {profile\|alias} {export_profile=default}` | Signs in to the given profile or alias and writes temporary credentials into `export_profile` (`default` unless specified). |
