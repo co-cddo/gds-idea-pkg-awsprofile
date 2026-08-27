@@ -122,6 +122,39 @@ def list() -> None:
 
 
 @cli.command()
+def status() -> None:
+    """Show every profile that currently holds exported credentials.
+
+    For each profile that has ever received credentials via `dev`/`prod`/
+    `integration`/`bedrock`/`profile`, prints the source profile it was
+    signed in from (with its alias, if any), and whether those credentials
+    are still valid, expired, or have no recorded expiration. Expiration is
+    resolved live from `boto3`/`botocore` (via `_get_expiration`) rather
+    than a stored value, so this may need to re-authenticate a source
+    profile if its cached assume-role credentials have already expired.
+
+    Example:
+        $ awsprofile status
+    """
+    from awsprofile.export_credentials import _dict_aliases, _dict_credentials_profiles, _get_expiration
+    from awsprofile.utils import _format_expiration
+
+    aliases, _profiles = _dict_aliases()
+    profiles_credentials = _dict_credentials_profiles()
+
+    reversed_aliases = {profile: alias for alias, profile in aliases.items()}
+
+    if not profiles_credentials:
+        click.echo("No profiles currently hold exported credentials.")
+        return
+
+    for export_profile, source_profile in profiles_credentials.items():
+        alias_suffix = f" ({reversed_aliases[source_profile]})" if source_profile in reversed_aliases else ""
+        expiration_status = _format_expiration(_get_expiration(source_profile))
+        click.echo(f"{export_profile}: signed in from {source_profile}{alias_suffix} - {expiration_status}")
+
+
+@cli.command()
 @click.argument("profile")
 @click.argument("alias")
 def set(alias: str, profile: str) -> None:

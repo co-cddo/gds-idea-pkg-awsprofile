@@ -5,6 +5,7 @@ Configparser-based helpers used to write directly to `~/.aws/config` and
 """
 
 import configparser
+import datetime
 import os
 
 
@@ -73,3 +74,28 @@ def _credentials_set(profile: str, key: str, value: str) -> None:
     with open(credentials_path, "w") as credentials_file:
         config.write(credentials_file)
     os.chmod(credentials_path, 0o600)
+
+
+def _format_expiration(expiration: datetime.datetime | None) -> str:
+    """Turn a credentials expiration time into a human-readable status.
+
+    Args:
+        expiration: A profile's credentials expiration time, as returned by
+            `awsprofile.export_credentials._get_expiration`, or `None` if
+            the profile's credentials have no known expiration (e.g.
+            static/long-lived keys).
+
+    Returns:
+        A short human-readable description, e.g. `"expires in 42 minutes"`,
+        `"expired 3 minutes ago"` or `"no expiration recorded"`.
+    """
+    if expiration is None:
+        return "no expiration recorded"
+
+    time_diff = expiration - datetime.datetime.now(datetime.UTC)
+    if time_diff > datetime.timedelta():
+        minutes_left = int(time_diff.total_seconds() // 60)
+        return f"expires in {minutes_left} minutes"
+
+    minutes_ago = int(-time_diff.total_seconds() // 60)
+    return f"expired {minutes_ago} minutes ago"

@@ -172,6 +172,43 @@ class TestDictCredentialsProfiles:
         assert ec._dict_credentials_profiles() == {}
 
 
+class TestGetExpiration:
+    def test_returns_expiry_time_when_present(self, aws_home, monkeypatch):
+        expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=15)
+        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials(expiry_time=expiry)))
+
+        assert ec._get_expiration("assume-ds-role-dev-readonly") == expiry
+
+    def test_returns_none_for_static_credentials(self, aws_home, monkeypatch):
+        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(_FakeCredentials()))
+
+        assert ec._get_expiration("gds-users") is None
+
+    def test_returns_none_when_no_credentials_resolved(self, aws_home, monkeypatch):
+        class _NoCredsSession:
+            def __init__(self, botocore_session=None):
+                pass
+
+            def get_credentials(self):
+                return None
+
+        monkeypatch.setattr(ec.boto3, "Session", _NoCredsSession)
+
+        assert ec._get_expiration("default") is None
+
+    def test_returns_none_on_client_error(self, aws_home, monkeypatch):
+        error = botocore.exceptions.ClientError({"Error": {"Code": "AccessDenied", "Message": "boom"}}, "AssumeRole")
+        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+
+        assert ec._get_expiration("assume-ds-role-dev-readonly") is None
+
+    def test_returns_none_on_param_validation_error(self, aws_home, monkeypatch):
+        error = botocore.exceptions.ParamValidationError(report="bad params")
+        monkeypatch.setattr(ec.boto3, "Session", _fake_boto3_session_factory(raise_error=error))
+
+        assert ec._get_expiration("assume-ds-role-dev-readonly") is None
+
+
 class TestSetAlias:
     def test_sets_alias_on_existing_profile(self, aws_home):
         _write_config(aws_home.config, {"profile assume-ds-role-dev-readonly": {}})

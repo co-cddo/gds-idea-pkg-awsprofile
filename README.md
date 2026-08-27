@@ -100,6 +100,7 @@ A few terms used throughout this doc and the CLI's own help text:
 | --- | --- |
 | `awsprofile init` | Creates/updates `~/.aws/config` and `~/.aws/credentials` with the GDS IDEA profile set. Accepts `--email`, `--mfa`/`--mfa-suffix`, and `--access-key`/`--secret-key` if `gds-users` isn't already configured. |
 | `awsprofile list` | Lists available `assume-ds-role-*` profiles with their aliases, and shows which export profiles currently hold credentials from which source profile. |
+| `awsprofile status` | Shows every export profile that currently holds credentials, the source profile (and alias) they were signed in from, and whether those credentials are still valid, expired, or have no recorded expiration. |
 | `awsprofile set {profile} {alias}` | Assigns a nickname (`alias`) to an existing profile. |
 | `awsprofile profile {profile\|alias} {export_profile=default}` | Signs in to the given profile or alias and writes temporary credentials into `export_profile` (`default` unless specified). |
 | `awsprofile dev` / `prod` / `integration` | Shortcuts for `awsprofile profile <alias>`, writing into `default`. |

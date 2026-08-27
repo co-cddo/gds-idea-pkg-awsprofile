@@ -9,6 +9,8 @@ covered by `test_export_credentials.py`, `test_create_credentials.py` and
 `test_prerequisites.py`.
 """
 
+import datetime
+
 from click.testing import CliRunner
 
 from awsprofile.cli import cli
@@ -94,6 +96,66 @@ class TestListCommand:
         assert "default (assume-ds-role-dev-poweraccess)" in result.output
 
 
+class TestStatusCommand:
+    def test_prints_source_profile_alias_and_expiration_for_each_export_profile(self, monkeypatch):
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_aliases",
+            lambda: ({"dev": "assume-ds-role-dev-poweraccess"}, ["assume-ds-role-dev-poweraccess", "default"]),
+        )
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_credentials_profiles",
+            lambda: {"default": "assume-ds-role-dev-poweraccess"},
+        )
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._get_expiration",
+            lambda profile: datetime.datetime(2099, 1, 1, tzinfo=datetime.UTC),
+        )
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "default: signed in from assume-ds-role-dev-poweraccess (dev) - expires in" in result.output
+
+    def test_prints_no_expiration_recorded_when_expiration_missing(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._dict_aliases", lambda: ({}, ["default"]))
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_credentials_profiles",
+            lambda: {"default": "assume-ds-role-dev-poweraccess"},
+        )
+        monkeypatch.setattr("awsprofile.export_credentials._get_expiration", lambda profile: None)
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "default: signed in from assume-ds-role-dev-poweraccess - no expiration recorded" in result.output
+
+    def test_prints_expired_when_expiration_is_in_the_past(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._dict_aliases", lambda: ({}, ["default"]))
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._dict_credentials_profiles",
+            lambda: {"default": "assume-ds-role-dev-poweraccess"},
+        )
+        monkeypatch.setattr(
+            "awsprofile.export_credentials._get_expiration",
+            lambda profile: datetime.datetime(2000, 1, 1, tzinfo=datetime.UTC),
+        )
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "expired" in result.output
+        assert "ago" in result.output
+
+    def test_prints_message_when_no_profiles_have_credentials(self, monkeypatch):
+        monkeypatch.setattr("awsprofile.export_credentials._dict_aliases", lambda: ({}, []))
+        monkeypatch.setattr("awsprofile.export_credentials._dict_credentials_profiles", lambda: {})
+
+        result = invoke("status")
+
+        assert result.exit_code == 0
+        assert "No profiles currently hold exported credentials." in result.output
+
+
 class TestSetCommand:
     def test_calls_set_alias_with_alias_and_profile(self, monkeypatch):
         calls = []
@@ -161,6 +223,6 @@ class TestHelpAndVersion:
         assert "awsprofile" in result.output
 
     def test_every_command_help_succeeds(self):
-        for command in ("dev", "prod", "integration", "bedrock", "profile", "list", "set", "init"):
+        for command in ("dev", "prod", "integration", "bedrock", "profile", "list", "status", "set", "init"):
             result = invoke(command, "--help")
             assert result.exit_code == 0, f"{command} --help failed: {result.output}"
